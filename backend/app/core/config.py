@@ -6,11 +6,18 @@ here (CLAUDE.md rule). See `.env.example` at the repo root for the full list.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Resolve backend/.env by this file's own location rather than the process's
+# current working directory, so `uvicorn` run with `--app-dir backend` from
+# the repo root (see .claude/launch.json) still finds it.
+_BACKEND_ENV_FILE = Path(__file__).resolve().parents[2] / ".env"
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=_BACKEND_ENV_FILE, extra="ignore")
 
     environment: str = "development"
 
