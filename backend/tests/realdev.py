@@ -85,6 +85,15 @@ def scenario(label: str, people: dict[str, tuple[str, str]], orgs: list[str]) ->
                     "update tickets set deleted_at = now() where id = any(%s::uuid[]) and deleted_at is null",
                     (data["ticket_ids"],),
                 )
+        # Disable fixture users/orgs so later runs never pick them up (e.g.
+        # as CTO notification recipients). Never hard-deleted.
+        user_ids = [v for k, v in data.items() if k.endswith("_id") and k not in ("category_id", "run_id")]
+        with conn.cursor() as cur:
+            cur.execute("update users set status = 'DISABLED' where id = any(%s::uuid[])", (user_ids,))
+            cur.execute(
+                "update organizations set status = 'DISABLED' where id = any(%s::uuid[])",
+                ([data[k] for k in orgs if k in data],),
+            )
         conn.close()
 
 

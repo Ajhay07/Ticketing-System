@@ -65,3 +65,10 @@ def service_conn() -> Iterator[psycopg.Connection]:
         conn.commit()
     finally:
         conn.close()
+
+
+@pytest.fixture(autouse=True)
+def _reset_rate_limits() -> None:
+    from app.services import rate_limit
+
+    rate_limit.reset()

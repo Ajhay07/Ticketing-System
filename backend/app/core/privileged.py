@@ -352,7 +352,7 @@ def update_email_log(
             cur.execute(
                 """
                 update email_logs
-                   set status = %s, attempt_count = %s, error_message = %s,
+                   set status = %s, attempt_count = %s, error_message = coalesce(%s, error_message),
                        provider_message_id = coalesce(%s, provider_message_id),
                        sent_at = case when %s = 'SENT' then now() else sent_at end
                  where id = %s
