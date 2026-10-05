@@ -1,0 +1,37 @@
+version: "3.9"
+
+# Local development support services. The Postgres/Auth stack itself is
+# expected to come from `supabase start` (Supabase CLI), which already
+# provides Postgres + the auth schema + Storage + a local Studio UI. This
+# compose file adds the pieces that aren't part of the Supabase CLI stack:
+# Redis (the V1 queue, decision #2) and the backend API + worker.
+#
+# Usage:
+#   supabase start            # starts Postgres/Auth/Storage locally
+#   docker compose up --build # starts redis + backend + worker
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  backend:
+    build:
+      context: ./backend
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    depends_on:
+      - redis
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  worker:
+    build:
+      context: ./backend
+    env_file:
+      - .env
+    depends_on:
+      - redis
+    command: python -m app.workers.notification_worker
