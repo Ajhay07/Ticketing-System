@@ -35,6 +35,12 @@ class Settings(BaseSettings):
     app_url: str = "http://localhost:3000"
     cors_allow_origins: list[str] = ["http://localhost:3000"]
 
+    # Attachments (spec §12, §31). Private bucket created by
+    # supabase/migrations/0003_storage_attachments.sql.
+    storage_bucket: str = "ticket-attachments"
+    attachment_max_bytes: int = 25 * 1024 * 1024
+    signed_url_expires_seconds: int = 60
+
     # Rate limiting defaults (spec §54)
     rate_limit_login_per_minute: int = 5
     rate_limit_ticket_create_per_hour: int = 20

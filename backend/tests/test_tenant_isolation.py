@@ -294,7 +294,8 @@ def test_org_a_ticket_list_never_includes_org_b_ticket_via_real_jwt(scenario: di
     client = TestClient(app)
     headers = {"Authorization": f"Bearer {scenario['user_a_token']}"}
 
-    tickets = client.get("/api/tickets", headers=headers).json()
+    # Phase 2: the list endpoint is paginated ({items, page, page_size, total}).
+    tickets = client.get("/api/tickets", headers=headers).json()["items"]
     ids = {t["id"] for t in tickets}
 
     assert scenario["ticket_a_unassigned"] in ids

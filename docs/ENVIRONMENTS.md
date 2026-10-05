@@ -90,3 +90,10 @@ exercised. As of this writing this has been run clean against **both** DEV
 and PROD (PROD run: see Phase 1 Part 2 report; DEV run: this document's
 companion Phase 1 Part 3 report) — 12/12 RLS tests, 31/31 backend tests,
 lint/typecheck clean, frontend build clean, in both cases.
+
+## Migration status (Phase 2)
+
+- `0003_storage_attachments.sql` (private `ticket-attachments` Storage bucket +
+  `storage.objects` RLS policies) has been applied to **DEV only**. It must be
+  applied to PROD before attachments are used there (same psycopg loop as in
+  `README.md`, or the Supabase SQL editor). PROD was not touched in Phase 2.

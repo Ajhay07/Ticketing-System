@@ -3,7 +3,17 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routers import admin, health, me, organizations, tickets
+from app.api.routers import (
+    admin,
+    categories,
+    health,
+    me,
+    organizations,
+    ticket_attachments,
+    ticket_comments,
+    tickets,
+    users,
+)
 from app.core.config import settings
 
 app = FastAPI(title="Clickfield AI Ticketing System API", version="0.1.0")
@@ -20,4 +30,8 @@ app.include_router(health.router)
 app.include_router(me.router)
 app.include_router(organizations.router)
 app.include_router(tickets.router)
+app.include_router(ticket_comments.router)
+app.include_router(ticket_attachments.router)
+app.include_router(categories.router)
+app.include_router(users.router)
 app.include_router(admin.router)

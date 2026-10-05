@@ -67,6 +67,56 @@ def can_close_ticket(principal: Principal, *, ticket_organization_id: str) -> bo
     return False
 
 
+def can_create_client_ticket(principal: Principal) -> bool:
+    """Spec §9: tickets are created by client users, always in their own
+    organization (the target org is the JWT's org, never client input)."""
+    return principal.role in (Role.CLIENT_ADMIN, Role.CLIENT_USER) and can_create_ticket(
+        principal, target_organization_id=principal.organization_id
+    )
+
+
+def can_resolve_ticket(principal: Principal, *, ticket_assigned_to: str | None) -> bool:
+    """Spec §41: the developer (assignee) or admin/CTO marks a ticket resolved."""
+    if principal.role in (Role.SUPER_ADMIN, Role.ADMIN):
+        return True
+    if principal.role == Role.TEAM_MEMBER:
+        return ticket_assigned_to == principal.user_id
+    return False
+
+
+def can_reopen_ticket(principal: Principal, *, ticket_organization_id: str) -> bool:
+    """Spec §41 "Still an Issue" / decision #9: the client (own org) or
+    admin/CTO may reopen. Same population as closing."""
+    return can_close_ticket(principal, ticket_organization_id=ticket_organization_id)
+
+
+def can_change_ticket_status(
+    principal: Principal, *, ticket_organization_id: str, ticket_assigned_to: str | None
+) -> bool:
+    """Generic status changes require being able to see the ticket at all;
+    which specific transitions are allowed per role is decided by
+    app.domain.state_machine."""
+    return can_view_ticket(
+        principal, ticket_organization_id=ticket_organization_id, ticket_assigned_to=ticket_assigned_to
+    )
+
+
+def can_write_comment(
+    principal: Principal,
+    *,
+    visibility: str,
+    ticket_organization_id: str,
+    ticket_assigned_to: str | None,
+) -> bool:
+    """Spec §11, §23: clients may only write CLIENT-visible comments on their
+    own org's tickets; INTERNAL notes follow can_write_internal_note."""
+    if visibility == "INTERNAL":
+        return can_write_internal_note(principal, ticket_assigned_to=ticket_assigned_to)
+    return can_view_ticket(
+        principal, ticket_organization_id=ticket_organization_id, ticket_assigned_to=ticket_assigned_to
+    )
+
+
 def can_hard_delete(principal: Principal) -> bool:
     """Spec §44: only Super Admin, and only via the privileged path."""
     return principal.role == Role.SUPER_ADMIN
