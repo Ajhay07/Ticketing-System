@@ -5,6 +5,7 @@ See:
 - `docs/V1_IMPLEMENTATION_PLAN.md` — approved architecture & decisions
 - `docs/ENVIRONMENTS.md` — DEV vs PROD Supabase projects, which one local dev uses, and why
 - `CLAUDE.md` — development rules for this repo
+- `docs/DEPLOYMENT.md` — production deployment, PROD migration procedure, rollback, pre-launch checklist
 
 ## Prerequisites
 
@@ -43,7 +44,7 @@ npm install
 npm run dev
 ```
 
-### Worker (Phase 4 stub for now)
+### Worker (notifications: in-app + email with retry)
 
 ```bash
 cd backend

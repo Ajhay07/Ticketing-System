@@ -97,3 +97,13 @@ lint/typecheck clean, frontend build clean, in both cases.
   `storage.objects` RLS policies) has been applied to **DEV only**. It must be
   applied to PROD before attachments are used there (same psycopg loop as in
   `README.md`, or the Supabase SQL editor). PROD was not touched in Phase 2.
+
+## Migration status (Phases 3-7)
+
+- `0004_soft_delete_fix.sql`, `0005_notification_type.sql`,
+  `0006_sla_audit_visibility_staff_names.sql` are applied to **DEV only**.
+- PROD still needs 0003-0006, applied by a human per `docs/DEPLOYMENT.md`
+  section 2. PROD was not touched in Phases 3-7.
+- DEV clean-up: all `RLS-TEST` fixture users/organizations in DEV were set to
+  `DISABLED` (no hard deletes; audit_logs untouched); fixture tickets are
+  soft-deleted. Test fixtures now do this automatically at teardown.
