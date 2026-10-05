@@ -3,6 +3,7 @@
 See:
 - `docs/Clickfield_AI_Ticketing_System_Documentation.md` — product/technical spec (source of truth for behavior)
 - `docs/V1_IMPLEMENTATION_PLAN.md` — approved architecture & decisions
+- `docs/ENVIRONMENTS.md` — DEV vs PROD Supabase projects, which one local dev uses, and why
 - `CLAUDE.md` — development rules for this repo
 
 ## Prerequisites
