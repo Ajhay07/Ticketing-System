@@ -13,8 +13,26 @@ from enum import Enum
 
 import jwt
 from fastapi import HTTPException, status
+from jwt import PyJWKClient
 
 from app.core.config import settings
+
+# Supabase projects created from ~2024 onward default to ASYMMETRIC JWT
+# signing keys (ES256/RS256), verified via a published JWKS endpoint,
+# instead of the legacy shared HS256 "JWT Secret". A project can have
+# either. PyJWKClient fetches and caches the project's public signing keys;
+# verifying with a public key (not a shared secret) is also simply a better
+# security posture, since there is nothing here that can leak and be used
+# to forge tokens.
+_jwks_client: PyJWKClient | None = None
+
+
+def _get_jwks_client() -> PyJWKClient:
+    global _jwks_client
+    if _jwks_client is None:
+        jwks_url = f"{settings.supabase_url}/auth/v1/.well-known/jwks.json"
+        _jwks_client = PyJWKClient(jwks_url, cache_keys=True)
+    return _jwks_client
 
 
 class Role(str, Enum):
@@ -61,22 +79,54 @@ class AuthError(HTTPException):
 def decode_supabase_jwt(token: str) -> dict:
     """Verify and decode a Supabase-issued access token.
 
-    Raises AuthError on any failure (expired, bad signature, malformed).
+    Supports BOTH JWT signing schemes a Supabase project may use:
+      - Legacy shared-secret HS256 (settings.supabase_jwt_secret)
+      - Current default: asymmetric ES256/RS256 via the project's JWKS
+        endpoint (settings.supabase_url + "/auth/v1/.well-known/jwks.json")
+
+    The token's own header `alg` determines which path is used - this is
+    safe (not an "alg confusion" vulnerability) because each path pins its
+    own fixed, expected algorithm list and verifies against a key that
+    corresponds to that algorithm family; a token can't trick an HS256
+    verification into using an RS/ES key as an HMAC secret or vice versa.
+
+    Raises AuthError on any failure (expired, bad signature, malformed,
+    unconfigured).
     """
-    if not settings.supabase_jwt_secret:
-        # Fail closed: never accept unverifiable tokens.
-        raise AuthError("JWT verification is not configured")
     try:
-        payload = jwt.decode(
-            token,
-            settings.supabase_jwt_secret,
-            algorithms=["HS256"],
-            audience="authenticated",
-            options={"require": ["exp", "sub"]},
-        )
+        header = jwt.get_unverified_header(token)
+    except jwt.InvalidTokenError as exc:
+        raise AuthError("Malformed token") from exc
+
+    alg = header.get("alg", "")
+
+    try:
+        if alg == "HS256":
+            if not settings.supabase_jwt_secret:
+                raise AuthError("JWT verification is not configured (HS256 secret missing)")
+            payload = jwt.decode(
+                token,
+                settings.supabase_jwt_secret,
+                algorithms=["HS256"],
+                audience="authenticated",
+                options={"require": ["exp", "sub"]},
+            )
+        elif alg in ("ES256", "RS256"):
+            if not settings.supabase_url:
+                raise AuthError("JWT verification is not configured (SUPABASE_URL missing)")
+            signing_key = _get_jwks_client().get_signing_key_from_jwt(token)
+            payload = jwt.decode(
+                token,
+                signing_key.key,
+                algorithms=[alg],
+                audience="authenticated",
+                options={"require": ["exp", "sub"]},
+            )
+        else:
+            raise AuthError(f"Unsupported token signing algorithm: {alg!r}")
     except jwt.ExpiredSignatureError as exc:
         raise AuthError("Token has expired") from exc
-    except jwt.InvalidTokenError as exc:
+    except (jwt.InvalidTokenError, jwt.PyJWKClientError) as exc:
         raise AuthError("Invalid token") from exc
     return payload
 
