@@ -2,21 +2,44 @@
 
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
+import { AlertTriangle, ArrowRight, CheckCircle2, CircleDot, Clock, Flame, Hourglass, Inbox } from "lucide-react";
 import { NotificationsPanel } from "@/components/NotificationsPanel";
-import { OverdueBadge, PriorityBadge, StatusBadge } from "@/components/tickets/Badges";
+import { DueDate, PriorityBadge, StatusBadge } from "@/components/tickets/Badges";
+import { ButtonLink } from "@/components/ui/Button";
+import { Page, PageHeader, SectionTitle } from "@/components/ui/Card";
+import { cn } from "@/components/ui/cn";
+import { StatCard } from "@/components/ui/StatCard";
+import { EmptyState, LoadingState } from "@/components/ui/States";
+import { Table, TableContainer, TBody, TD, TH, THead, TicketNumberLink, TR } from "@/components/ui/Table";
+import { ErrorText } from "@/components/ui/Form";
 import type { DashboardData } from "@/lib/admin";
-import { apiJson, formatDate } from "@/lib/tickets";
+import { apiJson, formatDate, statusLabel, type Priority } from "@/lib/tickets";
 
-const METRICS: { key: keyof DashboardData["metrics"]; label: string; href: string }[] = [
-  { key: "open", label: "Open", href: "/admin/tickets" },
-  { key: "in_progress", label: "In Progress", href: "/admin/tickets" },
-  { key: "waiting_for_client", label: "Waiting Client", href: "/admin/tickets" },
-  { key: "overdue", label: "Overdue", href: "/admin/tickets" },
-  { key: "resolved_today", label: "Resolved Today", href: "/admin/tickets" },
-  { key: "unassigned", label: "Unassigned", href: "/admin/unassigned" },
+type Tone = "brand" | "warning" | "success" | "violet" | "neutral" | "danger";
+
+const METRICS: {
+  key: keyof DashboardData["metrics"];
+  label: string;
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+  tone: Tone;
+}[] = [
+  { key: "open", label: "Open", href: "/admin/tickets", icon: CircleDot, tone: "brand" },
+  { key: "in_progress", label: "In Progress", href: "/admin/tickets", icon: Clock, tone: "brand" },
+  { key: "waiting_for_client", label: "Waiting Client", href: "/admin/tickets", icon: Hourglass, tone: "warning" },
+  { key: "overdue", label: "Overdue", href: "/admin/tickets", icon: AlertTriangle, tone: "neutral" },
+  { key: "resolved_today", label: "Resolved Today", href: "/admin/tickets", icon: CheckCircle2, tone: "success" },
+  { key: "unassigned", label: "Unassigned", href: "/admin/unassigned", icon: Inbox, tone: "violet" },
 ];
 
 const COLUMNS = ["Ticket", "Client", "Subject", "Category", "Priority", "Assigned To", "Status", "Created", "Due", "Last Updated"];
+
+const QUEUE_STYLES: Record<Priority, { card: string; count: string; bar: string }> = {
+  LOW: { card: "border-slate-200 bg-white", count: "text-slate-900", bar: "bg-slate-300" },
+  MEDIUM: { card: "border-slate-200 bg-white", count: "text-slate-900", bar: "bg-blue-500" },
+  HIGH: { card: "border-orange-200 bg-white", count: "text-orange-700", bar: "bg-orange-500" },
+  CRITICAL: { card: "border-red-300 bg-red-50/60 ring-1 ring-red-200", count: "text-red-700", bar: "bg-red-600" },
+};
 
 /** CTO dashboard (spec §13): "What needs my attention right now?" */
 export default function AdminDashboardPage() {
@@ -27,82 +50,110 @@ export default function AdminDashboardPage() {
   });
 
   return (
-    <main className="mx-auto max-w-6xl p-8">
-      <h1 className="text-2xl font-semibold text-slate-900">CTO Dashboard</h1>
-      {isLoading && <p className="mt-4 text-sm text-slate-500">Loading...</p>}
-      {error && <p className="mt-4 text-sm text-red-600">{(error as Error).message}</p>}
+    <Page>
+      <PageHeader title="CTO Dashboard" description="What needs your attention right now." />
+      {isLoading && <LoadingState label="Loading dashboard..." />}
+      {error && <ErrorText>{(error as Error).message}</ErrorText>}
       {data && (
         <>
-          <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-            {METRICS.map((m) => {
-              const alert = m.key === "overdue" && data.metrics.overdue > 0;
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6">
+            {METRICS.map((m) => (
+              <StatCard
+                key={m.key}
+                label={m.label}
+                value={data.metrics[m.key]}
+                href={m.href}
+                icon={m.icon}
+                tone={m.tone}
+                alert={m.key === "overdue" && data.metrics.overdue > 0}
+              />
+            ))}
+          </div>
+
+          <SectionTitle className="mt-10">Priority Queue</SectionTitle>
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            {data.priority_queue.map((p) => {
+              const critical = p.priority === "CRITICAL" && p.count > 0;
+              // Empty buckets stay calm; only a non-empty Critical bucket gets the alarm treatment.
+              const s =
+                p.priority === "CRITICAL" && !critical
+                  ? { card: "border-slate-200 bg-white", count: "text-slate-900", bar: "bg-red-600" }
+                  : QUEUE_STYLES[p.priority];
               return (
-                <Link key={m.key} href={m.href} className="rounded-lg border border-slate-200 bg-white p-4">
-                  <p className="text-xs uppercase text-slate-500">{m.label}</p>
-                  <p className={`mt-1 text-2xl font-semibold ${alert ? "text-red-600" : "text-slate-900"}`}>
-                    {data.metrics[m.key]}
+                <div key={p.priority} className={cn("relative overflow-hidden rounded-lg border p-4 shadow-sm", s.card)}>
+                  <span className={cn("absolute inset-y-0 left-0 w-1", s.bar)} aria-hidden />
+                  <div className="flex items-center justify-between gap-2 pl-1">
+                    <PriorityBadge priority={p.priority} />
+                    {critical && <Flame className="h-4 w-4 text-red-600" aria-hidden />}
+                  </div>
+                  <p className={cn("mt-3 pl-1 text-3xl font-semibold tabular tracking-tight", s.count)}>{p.count}</p>
+                  <p className="pl-1 text-xs text-slate-500">
+                    {statusLabel(p.priority)} ticket{p.count === 1 ? "" : "s"}
                   </p>
-                </Link>
+                </div>
               );
             })}
           </div>
 
-          <h2 className="mt-8 text-lg font-semibold text-slate-900">Priority Queue</h2>
-          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {data.priority_queue.map((p) => (
-              <div key={p.priority} className="rounded-lg border border-slate-200 bg-white p-4">
-                <PriorityBadge priority={p.priority} />
-                <p className="mt-2 text-sm text-slate-700">
-                  {p.count} ticket{p.count === 1 ? "" : "s"}
-                </p>
-              </div>
-            ))}
-          </div>
-
-          <h2 className="mt-8 text-lg font-semibold text-slate-900">Recent Tickets</h2>
-          <div className="mt-3 overflow-x-auto rounded-lg border border-slate-200 bg-white">
-            <table className="w-full text-left text-sm">
-              <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase text-slate-500">
-                <tr>
-                  {COLUMNS.map((h) => (
-                    <th key={h} className="px-3 py-2 font-medium">
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {data.recent_tickets.map((t) => (
-                  <tr key={t.id} className="border-b border-slate-100 last:border-0">
-                    <td className="px-3 py-2 font-mono text-xs">
-                      <Link href={`/admin/tickets/${t.id}`}>{t.ticket_number}</Link>
-                    </td>
-                    <td className="px-3 py-2">{t.organization_name}</td>
-                    <td className="px-3 py-2">
-                      <Link href={`/admin/tickets/${t.id}`}>{t.subject}</Link>
-                    </td>
-                    <td className="px-3 py-2">{t.category_name ?? "-"}</td>
-                    <td className="px-3 py-2">
-                      <PriorityBadge priority={t.priority} />
-                    </td>
-                    <td className="px-3 py-2">{t.assigned_to_name ?? "Unassigned"}</td>
-                    <td className="px-3 py-2">
-                      <StatusBadge status={t.status} />
-                    </td>
-                    <td className="px-3 py-2 text-slate-500">{formatDate(t.created_at)}</td>
-                    <td className="px-3 py-2 text-slate-500">
-                      {formatDate(t.due_at)} {t.is_overdue && <OverdueBadge />}
-                    </td>
-                    <td className="px-3 py-2 text-slate-500">{formatDate(t.updated_at)}</td>
+          <SectionTitle
+            className="mt-10"
+            actions={
+              <ButtonLink href="/admin/tickets" variant="ghost" size="sm">
+                View all
+                <ArrowRight className="h-3.5 w-3.5" />
+              </ButtonLink>
+            }
+          >
+            Recent Tickets
+          </SectionTitle>
+          <TableContainer>
+            {data.recent_tickets.length === 0 ? (
+              <EmptyState title="No tickets yet" description="New client tickets will appear here." />
+            ) : (
+              <Table>
+                <THead>
+                  <tr>
+                    {COLUMNS.map((h) => (
+                      <TH key={h}>{h}</TH>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-            {data.recent_tickets.length === 0 && <p className="p-4 text-sm text-slate-500">No tickets yet.</p>}
-          </div>
+                </THead>
+                <TBody>
+                  {data.recent_tickets.map((t) => (
+                    <TR key={t.id} href={`/admin/tickets/${t.id}`}>
+                      <TD>
+                        <TicketNumberLink href={`/admin/tickets/${t.id}`}>{t.ticket_number}</TicketNumberLink>
+                      </TD>
+                      <TD className="text-slate-600">{t.organization_name}</TD>
+                      <TD className="max-w-[280px] truncate font-medium text-slate-900">
+                        <Link href={`/admin/tickets/${t.id}`} className="rounded hover:text-brand-700">
+                          {t.subject}
+                        </Link>
+                      </TD>
+                      <TD className="text-slate-600">{t.category_name ?? "-"}</TD>
+                      <TD>
+                        <PriorityBadge priority={t.priority} />
+                      </TD>
+                      <TD className={t.assigned_to_name ? "text-slate-700" : "italic text-slate-400"}>
+                        {t.assigned_to_name ?? "Unassigned"}
+                      </TD>
+                      <TD>
+                        <StatusBadge status={t.status} />
+                      </TD>
+                      <TD className="tabular text-slate-500">{formatDate(t.created_at)}</TD>
+                      <TD>
+                        <DueDate value={formatDate(t.due_at)} overdue={t.is_overdue} />
+                      </TD>
+                      <TD className="tabular text-slate-500">{formatDate(t.updated_at)}</TD>
+                    </TR>
+                  ))}
+                </TBody>
+              </Table>
+            )}
+          </TableContainer>
         </>
       )}
       <NotificationsPanel ticketBasePath="/admin/tickets" />
-    </main>
+    </Page>
   );
 }

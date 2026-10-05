@@ -1,8 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { AuthCard } from "@/components/shell/AuthCard";
+import { Button } from "@/components/ui/Button";
+import { ErrorText, Input, Label } from "@/components/ui/Form";
+import { Spinner } from "@/components/ui/States";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -31,52 +36,51 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
-      <form
-        onSubmit={handleSubmit}
-        className="w-full max-w-sm rounded-lg border border-slate-200 bg-white p-8 shadow-sm"
-      >
-        <h1 className="mb-1 text-xl font-semibold text-slate-900">Clickfield AI</h1>
-        <p className="mb-6 text-sm text-slate-500">Sign in to the support portal</p>
+    <AuthCard title="Sign in to Clickfield AI" subtitle="Welcome back. Sign in to the support portal.">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <Label htmlFor="email">Email</Label>
+          <Input
+            id="email"
+            type="email"
+            autoComplete="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@company.com"
+            className="h-10"
+          />
+        </div>
+        <div>
+          <div className="mb-1.5 flex items-center justify-between">
+            <Label htmlFor="password" className="mb-0">
+              Password
+            </Label>
+            <Link
+              href="/forgot-password"
+              className="rounded text-xs font-medium text-brand-600 hover:text-brand-700 hover:underline"
+            >
+              Forgot password?
+            </Link>
+          </div>
+          <Input
+            id="password"
+            type="password"
+            autoComplete="current-password"
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="h-10"
+          />
+        </div>
 
-        <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="email">
-          Email
-        </label>
-        <input
-          id="email"
-          type="email"
-          required
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          className="mb-4 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-        />
+        {error && <ErrorText>{error}</ErrorText>}
 
-        <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="password">
-          Password
-        </label>
-        <input
-          id="password"
-          type="password"
-          required
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="mb-4 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-        />
-
-        {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
-
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
-        >
+        <Button type="submit" variant="primary" disabled={loading} className="h-10 w-full">
+          {loading && <Spinner className="text-white/80" />}
           {loading ? "Signing in..." : "Sign in"}
-        </button>
-
-        <a href="/forgot-password" className="mt-4 block text-center text-sm text-slate-500 underline">
-          Forgot password?
-        </a>
+        </Button>
       </form>
-    </main>
+    </AuthCard>
   );
 }

@@ -3,11 +3,45 @@
 @tailwind utilities;
 
 :root {
-  --background: 0 0% 100%;
-  --foreground: 222 20% 12%;
+  --background: 210 20% 98%;
+  --foreground: 222 30% 12%;
 }
 
-body {
-  color: hsl(var(--foreground));
-  background: hsl(var(--background));
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    color: hsl(var(--foreground));
+    background: hsl(var(--background));
+    font-feature-settings: "cv11", "ss01";
+  }
+  h1, h2, h3 {
+    letter-spacing: -0.015em;
+  }
+  /* Visible keyboard focus everywhere; mouse clicks don't show the ring. */
+  :focus-visible {
+    outline: 2px solid #3b6ef6;
+    outline-offset: 2px;
+  }
+  input[type="checkbox"],
+  input[type="radio"] {
+    accent-color: #2557e6;
+  }
+}
+
+@layer utilities {
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

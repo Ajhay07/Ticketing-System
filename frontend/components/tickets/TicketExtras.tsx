@@ -2,6 +2,11 @@
 
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { History, SlidersHorizontal } from "lucide-react";
+import { Button } from "@/components/ui/Button";
+import { Card, CardHeader } from "@/components/ui/Card";
+import { ErrorText, Input, Label, Select } from "@/components/ui/Form";
+import { EmptyState, Skeleton } from "@/components/ui/States";
 import { apiJson, formatDate, PRIORITIES, statusLabel, type Priority, type Ticket } from "@/lib/tickets";
 import { describeAuditEntry, type AuditEntry } from "@/lib/admin";
 
@@ -12,21 +17,38 @@ export function TicketHistory({ ticketId }: { ticketId: string }) {
     queryFn: () => apiJson<AuditEntry[]>(`/api/tickets/${ticketId}/history`),
   });
   return (
-    <section className="mt-6">
-      <h2 className="text-lg font-semibold text-slate-900">History</h2>
-      {history.error && <p className="mt-2 text-sm text-red-600">{(history.error as Error).message}</p>}
-      <ul className="mt-3 space-y-1 text-sm">
-        {history.data?.map((h) => (
-          <li key={h.id} className="flex gap-3">
-            <span className="w-44 shrink-0 text-slate-500">{formatDate(h.created_at)}</span>
-            <span className="text-slate-800">
-              {describeAuditEntry(h)}
-              <span className="text-slate-500"> by {h.actor_name ?? "Clickfield AI team"}</span>
-            </span>
-          </li>
-        ))}
-      </ul>
-    </section>
+    <Card>
+      <CardHeader icon={<History className="h-4 w-4" />} title="Activity" />
+      {history.isLoading && (
+        <div className="space-y-2 p-5">
+          <Skeleton className="h-4 w-3/4" />
+          <Skeleton className="h-4 w-2/3" />
+        </div>
+      )}
+      {history.error && (
+        <div className="p-5">
+          <ErrorText>Could not load ticket history.</ErrorText>
+        </div>
+      )}
+      {history.data && history.data.length === 0 && <EmptyState compact icon={History} title="No activity yet" />}
+      {history.data && history.data.length > 0 && (
+        <ol className="relative px-5 py-4">
+          <span className="absolute bottom-6 left-[27px] top-6 w-px bg-slate-200" aria-hidden />
+          {history.data.map((h) => (
+            <li key={h.id} className="relative flex gap-3 py-1.5">
+              <span className="relative z-10 mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full border-2 border-white bg-slate-300 ring-1 ring-slate-200" aria-hidden />
+              <div className="min-w-0 text-sm">
+                <p className="text-slate-800">
+                  {describeAuditEntry(h)}
+                  <span className="text-slate-500"> by {h.actor_name ?? "Clickfield AI team"}</span>
+                </p>
+                <p className="text-xs tabular text-slate-400">{formatDate(h.created_at)}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
+      )}
+    </Card>
   );
 }
 
@@ -50,39 +72,37 @@ export function TriagePanel({ ticket, onSaved }: { ticket: Ticket; onSaved: () =
     },
   });
   return (
-    <div className="mt-5 flex flex-wrap items-end gap-3 rounded-md border border-slate-200 p-4 text-sm">
-      <label className="flex flex-col gap-1">
-        <span className="text-xs uppercase text-slate-500">Priority</span>
-        <select
-          className="rounded-md border border-slate-300 px-2 py-1.5"
-          value={priority}
-          onChange={(e) => setPriority(e.target.value as Priority)}
+    <Card>
+      <CardHeader icon={<SlidersHorizontal className="h-4 w-4" />} title="Triage" />
+      <div className="space-y-3 px-5 py-4">
+        <div>
+          <Label htmlFor="triage-priority" className="text-xs text-slate-500">
+            Priority
+          </Label>
+          <Select id="triage-priority" value={priority} onChange={(e) => setPriority(e.target.value as Priority)}>
+            {PRIORITIES.map((p) => (
+              <option key={p} value={p}>
+                {statusLabel(p)}
+              </option>
+            ))}
+          </Select>
+        </div>
+        <div>
+          <Label htmlFor="triage-due" className="text-xs text-slate-500">
+            Due date
+          </Label>
+          <Input id="triage-due" type="datetime-local" value={due} onChange={(e) => setDue(e.target.value)} />
+        </div>
+        <Button
+          variant="primary"
+          className="w-full"
+          disabled={save.isPending || (priority === ticket.priority && !due)}
+          onClick={() => save.mutate()}
         >
-          {PRIORITIES.map((p) => (
-            <option key={p} value={p}>
-              {statusLabel(p)}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="flex flex-col gap-1">
-        <span className="text-xs uppercase text-slate-500">Due date</span>
-        <input
-          type="datetime-local"
-          className="rounded-md border border-slate-300 px-2 py-1.5"
-          value={due}
-          onChange={(e) => setDue(e.target.value)}
-        />
-      </label>
-      <button
-        type="button"
-        disabled={save.isPending || (priority === ticket.priority && !due)}
-        onClick={() => save.mutate()}
-        className="rounded-md bg-slate-900 px-3 py-2 font-medium text-white disabled:opacity-50"
-      >
-        Save triage
-      </button>
-      {save.error && <p className="text-red-600">{(save.error as Error).message}</p>}
-    </div>
+          Save triage
+        </Button>
+        {save.error && <ErrorText>{(save.error as Error).message}</ErrorText>}
+      </div>
+    </Card>
   );
 }

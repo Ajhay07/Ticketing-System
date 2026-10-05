@@ -1,10 +1,6 @@
-import { AdminNav } from "@/components/admin/AdminNav";
+import { SidebarShell } from "@/components/shell/AppShell";
 
+/** Navigation shell only. Every admin endpoint is enforced server-side (403 otherwise). */
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <>
-      <AdminNav />
-      {children}
-    </>
-  );
+  return <SidebarShell area="admin">{children}</SidebarShell>;
 }

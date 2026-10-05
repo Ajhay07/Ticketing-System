@@ -1,38 +1,69 @@
+import { AlertTriangle, Flame } from "lucide-react";
+import { Badge, type BadgeTone } from "@/components/ui/Badge";
 import { statusLabel, type Priority, type TicketStatus } from "@/lib/tickets";
 
-const PRIORITY_CLASSES: Record<Priority, string> = {
-  LOW: "bg-slate-100 text-slate-700",
-  MEDIUM: "bg-blue-50 text-blue-700",
-  HIGH: "bg-amber-50 text-amber-800",
-  CRITICAL: "bg-red-50 text-red-700",
+const PRIORITY_TONES: Record<Priority, BadgeTone> = {
+  LOW: "slate",
+  MEDIUM: "blue",
+  HIGH: "orange",
+  CRITICAL: "redSolid",
 };
 
-const STATUS_CLASSES: Partial<Record<TicketStatus, string>> = {
-  RESOLVED: "bg-green-50 text-green-700",
-  CLOSED: "bg-slate-100 text-slate-500",
-  WAITING_FOR_CLIENT: "bg-amber-50 text-amber-800",
-  REOPENED: "bg-red-50 text-red-700",
+/** One distinct tone per lifecycle state (spec §34 "clear status badges"). */
+const STATUS_TONES: Record<TicketStatus, BadgeTone> = {
+  OPEN: "blue",
+  TRIAGED: "indigo",
+  ASSIGNED: "violet",
+  IN_PROGRESS: "cyan",
+  WAITING_FOR_CLIENT: "amber",
+  RESOLVED: "green",
+  CLOSED: "slate",
+  REOPENED: "orange",
 };
 
 export function PriorityBadge({ priority }: { priority: Priority }) {
+  const critical = priority === "CRITICAL";
   return (
-    <span className={`rounded px-2 py-0.5 text-xs font-medium ${PRIORITY_CLASSES[priority]}`}>
+    <Badge
+      tone={PRIORITY_TONES[priority]}
+      dot={!critical}
+      icon={critical ? <Flame className="h-3 w-3" aria-hidden /> : undefined}
+      className={critical ? "font-semibold" : undefined}
+    >
       {statusLabel(priority)}
-    </span>
+    </Badge>
   );
 }
 
 export function StatusBadge({ status }: { status: TicketStatus }) {
   return (
-    <span
-      className={`rounded px-2 py-0.5 text-xs font-medium ${STATUS_CLASSES[status] ?? "bg-slate-100 text-slate-700"}`}
-    >
+    <Badge tone={STATUS_TONES[status] ?? "slate"} dot>
       {statusLabel(status)}
+    </Badge>
+  );
+}
+
+/** Due date cell: flagged in red with a warning icon when the API marks it overdue (spec §25). */
+export function DueDate({ value, overdue }: { value: string; overdue?: boolean }) {
+  if (!overdue) return <span className="tabular text-slate-500">{value}</span>;
+  return (
+    <span className="inline-flex items-center gap-1.5 font-medium tabular text-red-600" title="Overdue">
+      <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden />
+      {value}
+      <span className="sr-only">(overdue)</span>
     </span>
   );
 }
 
 /** Spec §25: overdue is a computed flag from the API (never auto-closed). */
 export function OverdueBadge() {
-  return <span className="rounded bg-red-600 px-2 py-0.5 text-xs font-medium text-white">Overdue</span>;
+  return (
+    <Badge
+      tone="red"
+      icon={<AlertTriangle className="h-3 w-3" aria-hidden />}
+      className="font-semibold uppercase tracking-wide"
+    >
+      Overdue
+    </Badge>
+  );
 }

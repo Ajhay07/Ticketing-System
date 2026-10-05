@@ -3,7 +3,13 @@
 import Link from "next/link";
 import { useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { OverdueBadge, PriorityBadge, StatusBadge } from "@/components/tickets/Badges";
+import { ChevronLeft, ChevronRight, Plus, Search, SearchX, Ticket as TicketIcon } from "lucide-react";
+import { DueDate, OverdueBadge, PriorityBadge, StatusBadge } from "@/components/tickets/Badges";
+import { Button, ButtonLink } from "@/components/ui/Button";
+import { Page, PageHeader } from "@/components/ui/Card";
+import { Checkbox, Input, Select } from "@/components/ui/Form";
+import { EmptyState, ErrorState, Skeleton } from "@/components/ui/States";
+import { Table, TableContainer, TBody, TD, TH, THead, TicketNumberLink, TR } from "@/components/ui/Table";
 import {
   apiJson,
   formatDate,
@@ -39,184 +45,233 @@ export function TicketList({ title, basePath, showCreate, showOrganization, empt
   const [unassigned, setUnassigned] = useState(false);
 
   const path = ticketListPath({ page, pageSize, status, priority, q, sort, overdue, unassigned });
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["tickets", path],
     queryFn: () => apiJson<TicketPage>(path),
     placeholderData: keepPreviousData,
   });
 
   const totalPages = data ? Math.max(1, Math.ceil(data.total / data.page_size)) : 1;
-  const selectClass = "rounded-md border border-slate-300 px-2 py-1.5 text-sm";
+  const filtered = Boolean(q || status || priority || overdue || unassigned);
+  const assignee = (t: TicketPage["items"][number]) =>
+    t.assigned_to ? (t.assigned_to_name ?? "Clickfield AI team") : "Unassigned";
 
   return (
-    <main className="mx-auto max-w-6xl p-8">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-slate-900">{title}</h1>
-        {showCreate && (
-          <Link
-            href={`${basePath}/new`}
-            className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white"
-          >
-            Create New Ticket
-          </Link>
-        )}
-      </div>
+    <Page>
+      <PageHeader
+        title={title}
+        description={data ? `${data.total} ticket${data.total === 1 ? "" : "s"}` : undefined}
+        actions={
+          showCreate && (
+            <ButtonLink href={`${basePath}/new`} variant="primary">
+              <Plus className="h-4 w-4" />
+              Create ticket
+            </ButtonLink>
+          )
+        }
+      />
 
-      <div className="mt-6 flex flex-wrap gap-3">
+      <div className="mb-4 flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-3 shadow-xs lg:flex-row lg:items-center">
         <form
-          className="flex gap-2"
+          className="relative flex-1 lg:max-w-sm"
+          role="search"
           onSubmit={(e) => {
             e.preventDefault();
             setQ(search);
             setPage(1);
           }}
         >
-          <input
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <Input
             type="search"
             aria-label="Search tickets"
             placeholder="Search number, subject, client, user..."
-            className="w-72 rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+            className="pl-9"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
-          <button type="submit" className="rounded-md border border-slate-300 px-3 py-1.5 text-sm">
+          <button type="submit" className="sr-only">
             Search
           </button>
         </form>
-        <select
-          aria-label="Sort"
-          className={selectClass}
-          value={sort}
-          onChange={(e) => {
-            setSort(e.target.value);
-            setPage(1);
-          }}
-        >
-          {SORT_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-        {adminFilters && (
-          <>
-            <label className="flex items-center gap-1 text-sm text-slate-700">
-              <input
-                type="checkbox"
+        <div className="flex flex-wrap items-center gap-2">
+          <Select
+            aria-label="Status filter"
+            className="w-auto"
+            value={status}
+            onChange={(e) => {
+              setStatus(e.target.value);
+              setPage(1);
+            }}
+          >
+            <option value="">All statuses</option>
+            {STATUSES.map((s) => (
+              <option key={s} value={s}>
+                {statusLabel(s)}
+              </option>
+            ))}
+          </Select>
+          <Select
+            aria-label="Priority filter"
+            className="w-auto"
+            value={priority}
+            onChange={(e) => {
+              setPriority(e.target.value);
+              setPage(1);
+            }}
+          >
+            <option value="">All priorities</option>
+            {PRIORITIES.map((p) => (
+              <option key={p} value={p}>
+                {statusLabel(p)}
+              </option>
+            ))}
+          </Select>
+          <Select
+            aria-label="Sort"
+            className="w-auto"
+            value={sort}
+            onChange={(e) => {
+              setSort(e.target.value);
+              setPage(1);
+            }}
+          >
+            {SORT_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </Select>
+          {adminFilters && (
+            <div className="flex items-center gap-4 px-1">
+              <Checkbox
+                label="Overdue"
                 checked={overdue}
                 onChange={(e) => {
                   setOverdue(e.target.checked);
                   setPage(1);
                 }}
               />
-              Overdue
-            </label>
-            <label className="flex items-center gap-1 text-sm text-slate-700">
-              <input
-                type="checkbox"
+              <Checkbox
+                label="Unassigned"
                 checked={unassigned}
                 onChange={(e) => {
                   setUnassigned(e.target.checked);
                   setPage(1);
                 }}
               />
-              Unassigned
-            </label>
-          </>
-        )}
-        <select
-          aria-label="Status filter"
-          className={selectClass}
-          value={status}
-          onChange={(e) => {
-            setStatus(e.target.value);
-            setPage(1);
-          }}
-        >
-          <option value="">All statuses</option>
-          {STATUSES.map((s) => (
-            <option key={s} value={s}>
-              {statusLabel(s)}
-            </option>
-          ))}
-        </select>
-        <select
-          aria-label="Priority filter"
-          className={selectClass}
-          value={priority}
-          onChange={(e) => {
-            setPriority(e.target.value);
-            setPage(1);
-          }}
-        >
-          <option value="">All priorities</option>
-          {PRIORITIES.map((p) => (
-            <option key={p} value={p}>
-              {statusLabel(p)}
-            </option>
-          ))}
-        </select>
+            </div>
+          )}
+        </div>
       </div>
 
-      <div className="mt-4 overflow-hidden rounded-lg border border-slate-200 bg-white">
-        {isLoading && <p className="p-6 text-sm text-slate-500">Loading tickets...</p>}
-        {error && <p className="p-6 text-sm text-red-600">{(error as Error).message}</p>}
-        {data && data.items.length === 0 && (
-          <p className="p-6 text-sm text-slate-500">{emptyMessage ?? "No tickets found."}</p>
-        )}
-        {data && data.items.length > 0 && (
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase text-slate-500">
-              <tr>
-                <th className="px-4 py-2 font-medium">Ticket</th>
-                <th className="px-4 py-2 font-medium">Subject</th>
-                {showOrganization && <th className="px-4 py-2 font-medium">Client</th>}
-                <th className="px-4 py-2 font-medium">Priority</th>
-                <th className="px-4 py-2 font-medium">Status</th>
-                <th className="px-4 py-2 font-medium">Assigned To</th>
-                <th className="px-4 py-2 font-medium">Created</th>
-                <th className="px-4 py-2 font-medium">Due</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.items.map((t) => (
-                <tr key={t.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
-                  <td className="px-4 py-2 font-mono text-xs text-slate-600">
-                    <Link href={`${basePath}/${t.id}`}>{t.ticket_number}</Link>
-                  </td>
-                  <td className="px-4 py-2 text-slate-900">
-                    <Link href={`${basePath}/${t.id}`}>{t.subject}</Link>
-                  </td>
-                  {showOrganization && <td className="px-4 py-2 text-slate-600">{t.organization_name}</td>}
-                  <td className="px-4 py-2">
-                    <PriorityBadge priority={t.priority} />
-                  </td>
-                  <td className="px-4 py-2">
-                    <StatusBadge status={t.status} />
-                  </td>
-                  <td className="px-4 py-2 text-slate-600">
-                    {t.assigned_to ? (t.assigned_to_name ?? "Clickfield AI team") : "Unassigned"}
-                  </td>
-                  <td className="px-4 py-2 text-slate-500">{formatDate(t.created_at)}</td>
-                  <td className="px-4 py-2 text-slate-500">
-                    {formatDate(t.due_at)} {t.is_overdue && <OverdueBadge />}
-                  </td>
+      {isLoading && <TableSkeleton />}
+      {error && !data && <ErrorState message="We couldn't load tickets." onRetry={() => refetch()} />}
+      {data && data.items.length === 0 && (
+        <TableContainer>
+          {filtered ? (
+            <EmptyState icon={SearchX} title="No tickets match your filters" description="Try a different search or clear a filter." />
+          ) : (
+            <EmptyState
+              icon={TicketIcon}
+              title={emptyMessage ?? "No tickets found."}
+              action={
+                showCreate && (
+                  <ButtonLink href={`${basePath}/new`} variant="primary">
+                    <Plus className="h-4 w-4" />
+                    Create ticket
+                  </ButtonLink>
+                )
+              }
+            />
+          )}
+        </TableContainer>
+      )}
+
+      {data && data.items.length > 0 && (
+        <>
+          {/* Desktop / tablet: table */}
+          <TableContainer className="hidden md:block">
+            <Table>
+              <THead>
+                <tr>
+                  <TH>Ticket</TH>
+                  <TH>Subject</TH>
+                  {showOrganization && <TH>Client</TH>}
+                  <TH>Priority</TH>
+                  <TH>Status</TH>
+                  <TH>Assigned To</TH>
+                  <TH>Created</TH>
+                  <TH>Due</TH>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+              </THead>
+              <TBody>
+                {data.items.map((t) => (
+                  <TR key={t.id} href={`${basePath}/${t.id}`}>
+                    <TD>
+                      <TicketNumberLink href={`${basePath}/${t.id}`}>{t.ticket_number}</TicketNumberLink>
+                    </TD>
+                    <TD className="max-w-[280px] truncate font-medium text-slate-900">
+                      <Link href={`${basePath}/${t.id}`} className="rounded hover:text-brand-700">
+                        {t.subject}
+                      </Link>
+                    </TD>
+                    {showOrganization && (
+                      <TD className="max-w-[180px] truncate text-slate-600">
+                        <span title={t.organization_name ?? undefined}>{t.organization_name}</span>
+                      </TD>
+                    )}
+                    <TD>
+                      <PriorityBadge priority={t.priority} />
+                    </TD>
+                    <TD>
+                      <StatusBadge status={t.status} />
+                    </TD>
+                    <TD className={`max-w-[160px] truncate ${t.assigned_to ? "text-slate-700" : "italic text-slate-400"}`}>
+                      {assignee(t)}
+                    </TD>
+                    <TD className="tabular text-slate-500">{formatDate(t.created_at)}</TD>
+                    <TD>
+                      <DueDate value={formatDate(t.due_at)} overdue={t.is_overdue} />
+                    </TD>
+                  </TR>
+                ))}
+              </TBody>
+            </Table>
+          </TableContainer>
 
-      {data && (
-        <div className="mt-4 flex items-center justify-between text-sm text-slate-600">
-          <span>
+          {/* Mobile: stacked rows */}
+          <ul className="divide-y divide-slate-100 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm md:hidden">
+            {data.items.map((t) => (
+              <li key={t.id}>
+                <Link href={`${basePath}/${t.id}`} className="block px-4 py-3 hover:bg-slate-50">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-mono text-xs font-medium text-slate-500">{t.ticket_number}</span>
+                    <span className="text-xs tabular text-slate-400">{formatDate(t.created_at)}</span>
+                  </div>
+                  <p className="mt-1 line-clamp-2 font-medium text-slate-900">{t.subject}</p>
+                  {showOrganization && <p className="mt-0.5 text-xs text-slate-500">{t.organization_name}</p>}
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    <PriorityBadge priority={t.priority} />
+                    <StatusBadge status={t.status} />
+                    {t.is_overdue && <OverdueBadge />}
+                  </div>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+
+      {data && data.total > 0 && (
+        <div className="mt-4 flex flex-col-reverse items-center justify-between gap-3 text-sm text-slate-600 sm:flex-row">
+          <span className="tabular">
             {data.total} ticket{data.total === 1 ? "" : "s"}
           </span>
-          <div className="flex items-center gap-3">
-            <select
+          <div className="flex items-center gap-2">
+            <Select
               aria-label="Tickets per page"
-              className={selectClass}
+              className="w-auto"
               value={pageSize}
               onChange={(e) => {
                 setPageSize(Number(e.target.value));
@@ -228,29 +283,43 @@ export function TicketList({ title, basePath, showCreate, showOrganization, empt
                   {size} / page
                 </option>
               ))}
-            </select>
-            <button
-              type="button"
-              disabled={page <= 1}
-              onClick={() => setPage((p) => p - 1)}
-              className="rounded-md border border-slate-300 px-3 py-1.5 disabled:opacity-50"
-            >
-              Previous
-            </button>
-            <span>
+            </Select>
+            <Button disabled={page <= 1} onClick={() => setPage((p) => p - 1)} aria-label="Previous page" className="w-9 px-0">
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <span className="whitespace-nowrap tabular">
               Page {page} of {totalPages}
             </span>
-            <button
-              type="button"
+            <Button
               disabled={page >= totalPages}
               onClick={() => setPage((p) => p + 1)}
-              className="rounded-md border border-slate-300 px-3 py-1.5 disabled:opacity-50"
+              aria-label="Next page"
+              className="w-9 px-0"
             >
-              Next
-            </button>
+              <ChevronRight className="h-4 w-4" />
+            </Button>
           </div>
         </div>
       )}
-    </main>
+    </Page>
+  );
+}
+
+export function TableSkeleton({ rows = 6 }: { rows?: number }) {
+  return (
+    <TableContainer>
+      <div role="status" aria-label="Loading" className="divide-y divide-slate-100">
+        <div className="h-10 bg-slate-50/80" />
+        {Array.from({ length: rows }).map((_, i) => (
+          <div key={i} className="flex items-center gap-6 px-4 py-3.5">
+            <Skeleton className="h-3 w-20" />
+            <Skeleton className="h-3 flex-1" />
+            <Skeleton className="hidden h-5 w-16 rounded-full sm:block" />
+            <Skeleton className="hidden h-5 w-20 rounded-full sm:block" />
+            <Skeleton className="hidden h-3 w-24 md:block" />
+          </div>
+        ))}
+      </div>
+    </TableContainer>
   );
 }

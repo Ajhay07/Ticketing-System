@@ -2,119 +2,120 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { CheckCircle2, Clock, MessageSquareReply, RotateCcw } from "lucide-react";
+import { Card, CardHeader, Page, PageHeader, SectionTitle } from "@/components/ui/Card";
+import { Select } from "@/components/ui/Form";
+import { StatCard } from "@/components/ui/StatCard";
+import { ErrorState, LoadingState } from "@/components/ui/States";
+import { Table, TableContainer, TBody, TD, TH, THead } from "@/components/ui/Table";
 import { formatMinutes, type ReportsData } from "@/lib/admin";
 import { apiJson } from "@/lib/tickets";
 
 /** Basic V1 reports (spec §37): plain tables, no charts (spec §34 "avoid unnecessary charts"). */
 export default function ReportsPage() {
   const [days, setDays] = useState(30);
-  const { data, error } = useQuery({
+  const { data, error, isLoading, refetch } = useQuery({
     queryKey: ["reports", days],
     queryFn: () => apiJson<ReportsData>(`/api/admin/reports?days=${days}`),
   });
-  const card = "rounded-lg border border-slate-200 bg-white p-4";
-  const th = "px-3 py-2 font-medium";
-  const td = "px-3 py-2";
 
   return (
-    <main className="mx-auto max-w-6xl p-8">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-slate-900">Reports</h1>
-        <select
-          aria-label="Report window"
-          className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
-          value={days}
-          onChange={(e) => setDays(Number(e.target.value))}
-        >
-          {[7, 30, 90, 365].map((d) => (
-            <option key={d} value={d}>
-              Last {d} days
-            </option>
-          ))}
-        </select>
-      </div>
-      {error && <p className="mt-4 text-sm text-red-600">{(error as Error).message}</p>}
+    <Page>
+      <PageHeader
+        title="Reports"
+        description="Response, resolution and volume across clients and the team."
+        actions={
+          <Select aria-label="Report window" className="w-auto" value={days} onChange={(e) => setDays(Number(e.target.value))}>
+            {[7, 30, 90, 365].map((d) => (
+              <option key={d} value={d}>
+                Last {d} days
+              </option>
+            ))}
+          </Select>
+        }
+      />
+      {isLoading && <LoadingState label="Loading reports..." />}
+      {error && <ErrorState message="We couldn't load reports." onRetry={() => refetch()} />}
       {data && (
         <>
-          <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {[
-              ["Avg response", formatMinutes(data.resolution.avg_response_minutes)],
-              ["Avg resolution", formatMinutes(data.resolution.avg_resolution_minutes)],
-              ["Tickets resolved", String(data.resolution.tickets_resolved)],
-              ["Tickets reopened", String(data.resolution.tickets_reopened)],
-            ].map(([label, value]) => (
-              <div key={label} className={card}>
-                <p className="text-xs uppercase text-slate-500">{label}</p>
-                <p className="mt-1 text-xl font-semibold text-slate-900">{value}</p>
-              </div>
-            ))}
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <StatCard label="Avg response" value={formatMinutes(data.resolution.avg_response_minutes)} icon={MessageSquareReply} tone="brand" />
+            <StatCard label="Avg resolution" value={formatMinutes(data.resolution.avg_resolution_minutes)} icon={Clock} tone="brand" />
+            <StatCard label="Tickets resolved" value={data.resolution.tickets_resolved} icon={CheckCircle2} tone="success" />
+            <StatCard label="Tickets reopened" value={data.resolution.tickets_reopened} icon={RotateCcw} tone="warning" />
           </div>
 
-          <h2 className="mt-8 text-lg font-semibold text-slate-900">Ticket volume</h2>
-          <div className="mt-3 grid gap-3 sm:grid-cols-3">
+          <SectionTitle className="mt-10">Ticket volume</SectionTitle>
+          <div className="grid gap-4 md:grid-cols-3">
             {(["day", "week", "month"] as const).map((unit) => (
-              <div key={unit} className={card}>
-                <p className="text-xs uppercase text-slate-500">Per {unit}</p>
-                <ul className="mt-2 max-h-56 overflow-y-auto text-sm">
+              <Card key={unit}>
+                <CardHeader title={`Per ${unit}`} />
+                <ul className="max-h-60 divide-y divide-slate-100 overflow-y-auto text-sm">
                   {data.volume[unit].map((v) => (
-                    <li key={v.period} className="flex justify-between">
-                      <span className="text-slate-600">{new Date(v.period).toLocaleDateString()}</span>
-                      <span className="font-medium">{v.tickets}</span>
+                    <li key={v.period} className="flex justify-between px-5 py-2">
+                      <span className="tabular text-slate-600">{new Date(v.period).toLocaleDateString()}</span>
+                      <span className="font-semibold tabular text-slate-900">{v.tickets}</span>
                     </li>
                   ))}
-                  {data.volume[unit].length === 0 && <li className="text-slate-500">No tickets</li>}
+                  {data.volume[unit].length === 0 && <li className="px-5 py-6 text-center text-slate-500">No tickets</li>}
                 </ul>
-              </div>
+              </Card>
             ))}
           </div>
 
-          <h2 className="mt-8 text-lg font-semibold text-slate-900">By client</h2>
-          <table className="mt-3 w-full rounded-lg border border-slate-200 bg-white text-left text-sm">
-            <thead className="bg-slate-50 text-xs uppercase text-slate-500">
-              <tr>
-                <th className={th}>Client</th>
-                <th className={th}>Tickets</th>
-                <th className={th}>Open</th>
-                <th className={th}>Overdue</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.by_client.map((c) => (
-                <tr key={c.id} className="border-t border-slate-100">
-                  <td className={td}>{c.name}</td>
-                  <td className={td}>{c.total_tickets}</td>
-                  <td className={td}>{c.open_tickets}</td>
-                  <td className={td}>{c.overdue_tickets}</td>
+          <SectionTitle className="mt-10">By client</SectionTitle>
+          <TableContainer>
+            <Table>
+              <THead>
+                <tr>
+                  <TH>Client</TH>
+                  <TH align="right">Tickets</TH>
+                  <TH align="right">Open</TH>
+                  <TH align="right">Overdue</TH>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </THead>
+              <TBody>
+                {data.by_client.map((c) => (
+                  <tr key={c.id} className="hover:bg-slate-50/80">
+                    <TD className="font-medium text-slate-900">{c.name}</TD>
+                    <TD align="right">{c.total_tickets}</TD>
+                    <TD align="right">{c.open_tickets}</TD>
+                    <TD align="right" className={c.overdue_tickets > 0 ? "font-semibold text-red-600" : "text-slate-400"}>
+                      {c.overdue_tickets}
+                    </TD>
+                  </tr>
+                ))}
+              </TBody>
+            </Table>
+          </TableContainer>
 
-          <h2 className="mt-8 text-lg font-semibold text-slate-900">By team member</h2>
-          <table className="mt-3 w-full rounded-lg border border-slate-200 bg-white text-left text-sm">
-            <thead className="bg-slate-50 text-xs uppercase text-slate-500">
-              <tr>
-                <th className={th}>Team member</th>
-                <th className={th}>Assigned</th>
-                <th className={th}>Resolved</th>
-                <th className={th}>Open workload</th>
-                <th className={th}>Avg resolution</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.by_team.map((t) => (
-                <tr key={t.id} className="border-t border-slate-100">
-                  <td className={td}>{t.name}</td>
-                  <td className={td}>{t.tickets_assigned}</td>
-                  <td className={td}>{t.tickets_resolved}</td>
-                  <td className={td}>{t.open_workload}</td>
-                  <td className={td}>{formatMinutes(t.avg_resolution_minutes)}</td>
+          <SectionTitle className="mt-10">By team member</SectionTitle>
+          <TableContainer>
+            <Table>
+              <THead>
+                <tr>
+                  <TH>Team member</TH>
+                  <TH align="right">Assigned</TH>
+                  <TH align="right">Resolved</TH>
+                  <TH align="right">Open workload</TH>
+                  <TH align="right">Avg resolution</TH>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </THead>
+              <TBody>
+                {data.by_team.map((t) => (
+                  <tr key={t.id} className="hover:bg-slate-50/80">
+                    <TD className="font-medium text-slate-900">{t.name}</TD>
+                    <TD align="right">{t.tickets_assigned}</TD>
+                    <TD align="right">{t.tickets_resolved}</TD>
+                    <TD align="right">{t.open_workload}</TD>
+                    <TD align="right">{formatMinutes(t.avg_resolution_minutes)}</TD>
+                  </tr>
+                ))}
+              </TBody>
+            </Table>
+          </TableContainer>
         </>
       )}
-    </main>
+    </Page>
   );
 }

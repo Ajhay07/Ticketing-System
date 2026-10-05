@@ -1,7 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
+import { ArrowLeft, MailCheck } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { AuthCard } from "@/components/shell/AuthCard";
+import { Button } from "@/components/ui/Button";
+import { Input, Label } from "@/components/ui/Form";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -19,39 +24,45 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
-      <form
-        onSubmit={handleSubmit}
-        className="w-full max-w-sm rounded-lg border border-slate-200 bg-white p-8 shadow-sm"
-      >
-        <h1 className="mb-6 text-xl font-semibold text-slate-900">Reset your password</h1>
-
-        {sent ? (
-          <p className="text-sm text-slate-600">
+    <AuthCard
+      title="Reset your password"
+      subtitle="Enter your email and we will send you a reset link."
+      footer={
+        <Link href="/login" className="inline-flex items-center gap-1.5 rounded font-medium text-slate-600 hover:text-slate-900">
+          <ArrowLeft className="h-4 w-4" />
+          Back to sign in
+        </Link>
+      }
+    >
+      {sent ? (
+        <div className="flex flex-col items-center py-2 text-center">
+          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+            <MailCheck className="h-5 w-5" />
+          </span>
+          <p className="mt-3 text-sm text-slate-600">
             If an account exists for that email, a reset link has been sent.
           </p>
-        ) : (
-          <>
-            <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="email">
-              Email
-            </label>
-            <input
+        </div>
+      ) : (
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <Label htmlFor="email">Email</Label>
+            <Input
               id="email"
               type="email"
+              autoComplete="email"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="mb-4 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              placeholder="you@company.com"
+              className="h-10"
             />
-            <button
-              type="submit"
-              className="w-full rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white"
-            >
-              Send reset link
-            </button>
-          </>
-        )}
-      </form>
-    </main>
+          </div>
+          <Button type="submit" variant="primary" className="h-10 w-full">
+            Send reset link
+          </Button>
+        </form>
+      )}
+    </AuthCard>
   );
 }
