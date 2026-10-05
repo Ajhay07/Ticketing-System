@@ -24,15 +24,21 @@ from app.domain import permissions
 from app.services import tickets as ticket_service
 from app.services.audit import write_audit
 from app.services.notifications import InAppNotification, commit_then_notify
+from app.services.rate_limit import enforce_rate_limit
 
 router = APIRouter(prefix="/api/tickets", tags=["comments"])
 
 _COMMENT_SELECT = """
-    select tc.id, tc.ticket_id, tc.user_id, u.name as author_name, u.role as author_role,
+    select tc.id, tc.ticket_id, tc.user_id,
+           coalesce(u.name, comment_author_first_name(tc.id)) as author_name, u.role as author_role,
            tc.comment, tc.visibility, tc.created_at
     from ticket_comments tc
     left join users u on u.id = tc.user_id
 """
+# Clients cannot read staff user rows (users_select RLS); for them the author
+# of a staff reply resolves to the staff member's FIRST NAME only via
+# comment_author_first_name() (0006 migration, spec §10 conversation shows
+# "ARJUN"), and author_role stays null.
 
 
 class CreateCommentRequest(BaseModel):
@@ -60,6 +66,7 @@ def create_comment(
     principal: Principal = Depends(get_current_principal),
     conn: psycopg.Connection = Depends(get_db),
 ) -> dict[str, Any]:
+    enforce_rate_limit("comment_create", principal.user_id)
     ticket = ticket_service.fetch_ticket(conn, str(ticket_id))
     assigned_to = str(ticket["assigned_to"]) if ticket["assigned_to"] else None
     if not permissions.can_write_comment(
@@ -123,7 +130,12 @@ def create_comment(
             "notify_cto": assigned_to is None or ticket["priority"] in ("HIGH", "CRITICAL"),
         }
     elif not is_internal:
-        # Staff reply visible to the client: email the ticket creator (Phase 4).
+        # Staff reply visible to the client: notify the ticket creator.
+        in_app.append(
+            InAppNotification(
+                str(ticket["created_by"]), "TEAM_REPLY", f"New reply on {number}", ticket["subject"]
+            )
+        )
         job = {
             "event": "TEAM_REPLY",
             "ticket_number": number,

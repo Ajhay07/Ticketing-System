@@ -117,6 +117,17 @@ def can_write_comment(
     )
 
 
+def can_triage_ticket(principal: Principal) -> bool:
+    """Spec §3.1/§3.2: change priority, category, set due dates - CTO/admin."""
+    return principal.role in (Role.SUPER_ADMIN, Role.ADMIN)
+
+
+def can_soft_delete_ticket(principal: Principal) -> bool:
+    """Spec §44: archive/soft delete is an admin (CTO) / super admin action.
+    Clients cannot delete (spec §30); team members are not granted it."""
+    return principal.role in (Role.SUPER_ADMIN, Role.ADMIN)
+
+
 def can_hard_delete(principal: Principal) -> bool:
     """Spec §44: only Super Admin, and only via the privileged path."""
     return principal.role == Role.SUPER_ADMIN

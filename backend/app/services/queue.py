@@ -40,7 +40,48 @@ class RedisQueueBackend:
         return json.loads(raw)
 
 
+class InMemoryQueueBackend:
+    """Process-local queue (tests, and single-process local dev without
+    Redis). Not for production: jobs are lost on restart."""
+
+    def __init__(self) -> None:
+        self._queues: dict[str, list[dict[str, Any]]] = {}
+
+    def enqueue(self, queue: str, payload: dict[str, Any]) -> None:
+        # Round-trip through JSON exactly like Redis would.
+        self._queues.setdefault(queue, []).append(json.loads(json.dumps(payload)))
+
+    def dequeue(self, queue: str, timeout: int = 5) -> dict[str, Any] | None:
+        items = self._queues.get(queue)
+        return items.pop(0) if items else None
+
+
 _backend: QueueBackend | None = None
+_redis_client: redis.Redis | None = None
+
+
+def _redis() -> redis.Redis:
+    global _redis_client
+    if _redis_client is None:
+        _redis_client = redis.Redis.from_url(settings.redis_url, socket_timeout=2, socket_connect_timeout=2)
+    return _redis_client
+
+
+def ping() -> bool:
+    """Readiness probe for the queue store (used by GET /ready)."""
+    return bool(_redis().ping())
+
+
+def incr_window_counter(key: str, window_seconds: int) -> int:
+    """Fixed-window counter shared across API instances (rate limiting,
+    app/services/rate_limit.py). Lives here because CLAUDE.md keeps every
+    direct Redis call inside this module."""
+    client = _redis()
+    pipe = client.pipeline()
+    pipe.incr(key)
+    pipe.expire(key, window_seconds, nx=True)
+    count, _ = pipe.execute()
+    return int(count)
 
 
 def get_queue_backend() -> QueueBackend:

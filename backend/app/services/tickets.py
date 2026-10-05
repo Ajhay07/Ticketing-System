@@ -30,23 +30,54 @@ from app.services.audit import write_audit
 
 PAGE_SIZES = (25, 50, 100)
 
-_TICKET_SELECT = """
-    select t.id, t.ticket_number, t.organization_id, o.name as organization_name,
-           t.subject, t.description, t.status, t.priority,
-           t.category_id, c.name as category_name,
-           t.assigned_to, au.name as assigned_to_name,
-           t.created_by, cu.name as created_by_name,
-           t.due_at, t.response_due_at, t.first_response_at, t.resolution_summary,
-           t.resolved_at, t.closed_at, t.version, t.created_at, t.updated_at
+_OVERDUE_SQL = "(t.due_at is not null and t.due_at < now() and t.status not in ('RESOLVED', 'CLOSED'))"
+
+_TICKET_FROM = """
     from tickets t
     left join organizations o on o.id = t.organization_id
     left join categories c on c.id = t.category_id
     left join users au on au.id = t.assigned_to
     left join users cu on cu.id = t.created_by
 """
+
+_TICKET_SELECT = (
+    """
+    select t.id, t.ticket_number, t.organization_id, o.name as organization_name,
+           t.subject, t.description, t.status, t.priority,
+           t.category_id, c.name as category_name,
+           t.assigned_to, coalesce(au.name, ticket_assignee_first_name(t.id)) as assigned_to_name,
+           t.created_by, cu.name as created_by_name,
+           t.due_at, t.response_due_at, t.first_response_at, t.resolution_summary,
+           t.resolved_at, t.closed_at, t.version, t.created_at, t.updated_at,
+           """
+    + _OVERDUE_SQL
+    + " as is_overdue"
+    + _TICKET_FROM
+)
 # Note: the users joins are themselves RLS-filtered. A client cannot read
-# internal staff rows (users_select), so assigned_to_name is null for
-# clients - the frontend shows a generic "Clickfield AI team" label instead.
+# internal staff rows (users_select), so for clients assigned_to_name falls
+# back to ticket_assignee_first_name() (0006 migration): the assignee's
+# FIRST NAME only, for a ticket the caller can already see (spec §10 shows
+# "Assigned To: Arjun" to the client). No other staff data is exposed.
+
+# Spec §36 sort options. Default (spec: "Critical/high priority + overdue +
+# newest") puts CRITICAL then HIGH first, then overdue, then newest.
+_PRIORITY_RANK = "(case t.priority when 'CRITICAL' then 4 when 'HIGH' then 3 when 'MEDIUM' then 2 else 1 end)"
+SORTS: dict[str, str] = {
+    "default": f"(case when t.priority in ('CRITICAL', 'HIGH') then {_PRIORITY_RANK} else 0 end) desc, "
+    f"{_OVERDUE_SQL} desc, t.created_at desc",
+    "newest": "t.created_at desc",
+    "oldest": "t.created_at asc",
+    "priority": f"{_PRIORITY_RANK} desc, t.created_at desc",
+    "due": "t.due_at asc nulls last, t.created_at desc",
+    "updated": "t.updated_at desc",
+    "resolved": "t.resolved_at desc nulls last, t.updated_at desc",
+}
+
+
+def escape_like(term: str) -> str:
+    """Escape LIKE wildcards so user search text is matched literally."""
+    return term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
 class _Now:
@@ -78,7 +109,22 @@ def list_tickets(
     status_filter: str | None,
     priority: str | None,
     assigned_to: str | None,
+    q: str | None = None,
+    organization_id: str | None = None,
+    category_id: str | None = None,
+    overdue: bool | None = None,
+    open_only: bool = False,
+    created_from: str | None = None,
+    created_to: str | None = None,
+    due_from: str | None = None,
+    due_to: str | None = None,
+    sort: str = "default",
 ) -> dict[str, Any]:
+    """Server-side filter/search/sort/paginate (spec §14, §35, §36, §47, §48).
+
+    Filters only ever NARROW what RLS already allows: e.g. a client passing
+    another org's organization_id simply gets zero rows, and search over
+    assignee names only matches staff rows the caller can read."""
     conditions: list[sql.Composable] = []
     params: list[Any] = []
     if status_filter:
@@ -92,14 +138,49 @@ def list_tickets(
     elif assigned_to:
         conditions.append(sql.SQL("t.assigned_to = %s"))
         params.append(assigned_to)
+    if organization_id:
+        conditions.append(sql.SQL("t.organization_id = %s"))
+        params.append(organization_id)
+    if category_id:
+        conditions.append(sql.SQL("t.category_id = %s"))
+        params.append(category_id)
+    if overdue is True:
+        conditions.append(sql.SQL(_OVERDUE_SQL))
+    elif overdue is False:
+        conditions.append(sql.SQL("not " + _OVERDUE_SQL))
+    if open_only:
+        conditions.append(sql.SQL("t.status not in ('RESOLVED', 'CLOSED')"))
+    for column, op, value in (
+        ("created_at", ">=", created_from),
+        ("created_at", "<", created_to),
+        ("due_at", ">=", due_from),
+        ("due_at", "<", due_to),
+    ):
+        if value:
+            conditions.append(sql.SQL("t.{} " + op + " %s").format(sql.Identifier(column)))
+            params.append(value)
+    if q:
+        pattern = f"%{escape_like(q.strip())}%"
+        conditions.append(
+            sql.SQL(
+                "(t.ticket_number ilike %s or t.subject ilike %s or t.description ilike %s"
+                " or o.name ilike %s or cu.name ilike %s or cu.email ilike %s or au.name ilike %s)"
+            )
+        )
+        params.extend([pattern] * 7)
     where = sql.SQL(" where ") + sql.SQL(" and ").join(conditions) if conditions else sql.SQL("")
+    order = sql.SQL(SORTS.get(sort, SORTS["default"]))
 
     with conn.cursor() as cur:
-        cur.execute(sql.SQL("select count(*) from tickets t") + where, params)
+        cur.execute(sql.SQL("select count(*)") + sql.SQL(_TICKET_FROM) + where, params)
         count_row = cur.fetchone()
         total = int(count_row[0]) if count_row else 0
         cur.execute(
-            sql.SQL(_TICKET_SELECT) + where + sql.SQL(" order by t.created_at desc limit %s offset %s"),
+            sql.SQL(_TICKET_SELECT)
+            + where
+            + sql.SQL(" order by ")
+            + order
+            + sql.SQL(" limit %s offset %s"),
             [*params, page_size, (page - 1) * page_size],
         )
         items = rows_as_dicts(cur)

@@ -41,10 +41,21 @@ class Settings(BaseSettings):
     attachment_max_bytes: int = 25 * 1024 * 1024
     signed_url_expires_seconds: int = 60
 
-    # Rate limiting defaults (spec §54)
-    rate_limit_login_per_minute: int = 5
+    # Rate limiting defaults (spec §54). See app/services/rate_limit.py.
+    rate_limit_enabled: bool = True
+    rate_limit_backend: str = "memory"  # "memory" (single instance) or "redis" (shared)
+    rate_limit_login_per_minute: int = 5  # informational: login is limited by Supabase Auth itself
     rate_limit_ticket_create_per_hour: int = 20
     rate_limit_comment_create_per_hour: int = 60
+    rate_limit_attachment_upload_per_hour: int = 60
+    rate_limit_password_reset_per_hour: int = 10
+
+    # Email delivery retry (spec §46: at least 3 attempts, backoff between).
+    email_max_attempts: int = 3
+    email_retry_base_seconds: float = 2.0
+
+    # Logging
+    log_level: str = "INFO"
 
 
 settings = Settings()

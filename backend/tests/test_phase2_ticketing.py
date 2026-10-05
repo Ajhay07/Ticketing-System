@@ -354,7 +354,14 @@ def test_stale_version_is_rejected(s: dict) -> None:
 def test_client_cannot_read_staff_names_but_sees_assignment(s: dict) -> None:
     t = client.get(f"/api/tickets/{s['ticket']}", headers=_h(s, "client_a")).json()
     assert str(t["assigned_to"]) == s["arjun_id"]
-    assert t["assigned_to_name"] is None  # users_select RLS hides internal staff rows from clients
+    # Phase 5 (spec §10 "Assigned To: Arjun"): clients get the assignee's
+    # FIRST NAME only, via ticket_assignee_first_name() (0006). The full
+    # staff row stays hidden by users_select RLS.
+    assert t["assigned_to_name"] == "RLS-TEST"  # first token of "RLS-TEST P2 arjun"
+    with user_scoped_connection(principal_from_token(s["client_a_token"])) as conn, conn.cursor() as cur:
+        cur.execute("select count(*) from users where id = %s", (s["arjun_id"],))
+        row = cur.fetchone()
+        assert row is not None and row[0] == 0
 
 
 # --- comments / internal notes ---------------------------------------------------

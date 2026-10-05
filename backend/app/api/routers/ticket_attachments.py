@@ -37,6 +37,7 @@ from app.services import attachments as attachment_rules
 from app.services import storage
 from app.services import tickets as ticket_service
 from app.services.audit import write_audit
+from app.services.rate_limit import enforce_rate_limit
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +88,7 @@ def create_attachment(
     except attachment_rules.AttachmentValidationError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
 
+    enforce_rate_limit("attachment_upload", principal.user_id)
     ticket = ticket_service.fetch_ticket(conn, str(ticket_id))
     assigned_to = str(ticket["assigned_to"]) if ticket["assigned_to"] else None
     if not permissions.can_view_ticket(
@@ -94,14 +96,17 @@ def create_attachment(
     ):
         raise ticket_service.not_found()
 
+    on_internal_note = False
     if body.comment_id is not None:
         with conn.cursor() as cur:
             cur.execute(
-                "select id from ticket_comments where id = %s and ticket_id = %s",
+                "select visibility from ticket_comments where id = %s and ticket_id = %s",
                 (str(body.comment_id), str(ticket_id)),
             )
-            if cur.fetchone() is None:
+            comment_row = cur.fetchone()
+            if comment_row is None:
                 raise HTTPException(status_code=422, detail="Unknown comment for this ticket")
+            on_internal_note = comment_row[0] == "INTERNAL"
 
     attachment_id = str(uuid.uuid4())
     storage_path = (
@@ -140,6 +145,9 @@ def create_attachment(
             "mime_type": body.mime_type.lower(),
             "file_size": body.file_size,
         },
+        # Attachments on internal notes are hidden from clients in the audit
+        # history too (audit_logs_select, 0006 migration).
+        metadata={"internal": True} if on_internal_note else None,
         ip_address=client_ip(request),
     )
     conn.commit()  # storage.objects RLS must see the committed metadata row
@@ -148,15 +156,14 @@ def create_attachment(
         upload_url = storage.create_signed_upload_url(principal, storage_path)
     except Exception as exc:
         logger.exception("Signed upload URL failed for attachment %s", attachment_id)
-        # Best effort only: under the 0002 policies, RLS rejects a soft
-        # delete by normal roles (the updated row would no longer pass
-        # ticket_attachments_select). The orphan row is harmless - it has
-        # no object behind it, so its download returns 404.
+        # Best effort: soft-delete the orphan metadata row via the
+        # soft_delete_attachment() function (0004 migration; a plain UPDATE
+        # cannot soft-delete because SELECT policies hide deleted rows). Even
+        # if this fails the orphan is harmless - no object exists behind it,
+        # so its download returns 404.
         try:
             with conn.cursor() as cur:
-                cur.execute(
-                    "update ticket_attachments set deleted_at = now() where id = %s", (attachment_id,)
-                )
+                cur.execute("select soft_delete_attachment(%s)", (attachment_id,))
             conn.commit()
         except Exception:
             logger.warning("Could not soft-delete orphan attachment row %s", attachment_id)

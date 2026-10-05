@@ -18,22 +18,27 @@ which can never fail the request (CLAUDE.md rule 10).
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
 import psycopg
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from pydantic import BaseModel, Field, StringConstraints
 
 from app.api.deps import client_ip, get_current_principal, get_db
+from app.api.routers._rows import rows_as_dicts
 from app.core.security import Principal
 from app.domain import permissions, state_machine
 from app.services import tickets as ticket_service
+from app.services.audit import write_audit
 from app.services.notifications import InAppNotification, commit_then_notify
+from app.services.rate_limit import enforce_rate_limit
 
 router = APIRouter(prefix="/api/tickets", tags=["tickets"])
 
 Priority = Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"]
+SortOption = Literal["default", "newest", "oldest", "priority", "due", "updated", "resolved"]
 Status = Literal[
     "OPEN", "TRIAGED", "ASSIGNED", "IN_PROGRESS", "WAITING_FOR_CLIENT", "RESOLVED", "CLOSED", "REOPENED"
 ]
@@ -86,10 +91,22 @@ def list_tickets(
     status_filter: Status | None = Query(default=None, alias="status"),
     priority: Priority | None = None,
     assigned_to: str | None = Query(default=None, description="A user id, or 'unassigned'"),
+    q: Annotated[str | None, Query(max_length=200, description="Search (spec §35)")] = None,
+    organization_id: UUID | None = Query(default=None, description="Client filter (narrows RLS only)"),
+    category_id: UUID | None = None,
+    overdue: bool | None = None,
+    open_only: bool = False,
+    created_from: datetime | None = None,
+    created_to: datetime | None = None,
+    due_from: datetime | None = None,
+    due_to: datetime | None = None,
+    sort: SortOption = "default",
     principal: Principal = Depends(get_current_principal),
     conn: psycopg.Connection = Depends(get_db),
 ) -> dict[str, Any]:
-    """Paginated list (spec §48). RLS alone scopes rows to the caller."""
+    """Paginated list with server-side filter/search/sort (spec §14, §35,
+    §36, §48). RLS alone scopes rows to the caller; every filter here can
+    only narrow that set further."""
     if page_size not in ticket_service.PAGE_SIZES:
         raise HTTPException(status_code=422, detail="page_size must be 25, 50 or 100")
     if assigned_to not in (None, "unassigned"):
@@ -97,6 +114,10 @@ def list_tickets(
             assigned_to = str(UUID(assigned_to))
         except ValueError as exc:
             raise HTTPException(status_code=422, detail="assigned_to must be a user id") from exc
+    if assigned_to == "unassigned" and not permissions.can_view_unassigned_queue(principal):
+        # Decision #5: the unassigned queue is admin-only. RLS already
+        # returns nothing for a team member; be explicit anyway.
+        raise _forbidden()
     return ticket_service.list_tickets(
         conn,
         page=page,
@@ -104,6 +125,16 @@ def list_tickets(
         status_filter=status_filter,
         priority=priority,
         assigned_to=assigned_to,
+        q=q or None,
+        organization_id=str(organization_id) if organization_id else None,
+        category_id=str(category_id) if category_id else None,
+        overdue=overdue,
+        open_only=open_only,
+        created_from=created_from.isoformat() if created_from else None,
+        created_to=created_to.isoformat() if created_to else None,
+        due_from=due_from.isoformat() if due_from else None,
+        due_to=due_to.isoformat() if due_to else None,
+        sort=sort,
     )
 
 
@@ -116,6 +147,7 @@ def create_ticket(
 ) -> dict[str, Any]:
     if not permissions.can_create_client_ticket(principal):
         raise _forbidden()
+    enforce_rate_limit("ticket_create", principal.user_id)
     ticket = ticket_service.create_ticket(
         conn,
         principal,
@@ -147,6 +179,38 @@ def get_ticket(
 ) -> dict[str, Any]:
     # 404 whether the ticket doesn't exist OR RLS hid it (decision #4).
     return ticket_service.fetch_ticket(conn, str(ticket_id))
+
+
+@router.delete("/{ticket_id}", status_code=204, response_class=Response)
+def soft_delete_ticket(
+    ticket_id: UUID,
+    request: Request,
+    principal: Principal = Depends(get_current_principal),
+    conn: psycopg.Connection = Depends(get_db),
+) -> Response:
+    """Spec §44: archive / soft delete. Admin (CTO) or super admin only. The
+    row is hidden from every normal read afterwards (RLS SELECT policies).
+    Runs through the soft_delete_ticket() SQL function (0004 migration),
+    which re-checks the caller's role from the JWT itself."""
+    if not permissions.can_soft_delete_ticket(principal):
+        raise _forbidden()
+    ticket = ticket_service.fetch_ticket(conn, str(ticket_id), for_update=True)
+    write_audit(
+        conn,
+        ticket_id=str(ticket_id),
+        user_id=principal.user_id,
+        action="ticket_archived",
+        old_value={"status": ticket["status"]},
+        new_value={"archived": True},
+        ip_address=client_ip(request),
+    )
+    with conn.cursor() as cur:
+        cur.execute("select soft_delete_ticket(%s)", (str(ticket_id),))
+        row = cur.fetchone()
+    if not row or not row[0]:
+        raise ticket_service.not_found()
+    conn.commit()
+    return Response(status_code=204)
 
 
 @router.post("/{ticket_id}/assign")
@@ -335,3 +399,84 @@ def reopen_ticket(
         version=body.version if body else None,
         ip_address=client_ip(request),
     )
+
+
+class UpdateTicketRequest(VersionedRequest):
+    """CTO triage edits (spec §3.2 "Change priority", "Set due dates"; §24).
+    Only these fields are accepted; organization_id / created_by / status /
+    assigned_to are NOT part of this model, so they can never be changed
+    here (unknown body keys are ignored, never honored)."""
+
+    priority: Priority | None = None
+    category_id: UUID | None = None
+    due_at: datetime | None = None
+
+
+@router.patch("/{ticket_id}")
+def update_ticket(
+    ticket_id: UUID,
+    body: UpdateTicketRequest,
+    request: Request,
+    principal: Principal = Depends(get_current_principal),
+    conn: psycopg.Connection = Depends(get_db),
+) -> dict[str, Any]:
+    if not permissions.can_triage_ticket(principal):
+        raise _forbidden()
+    ticket = ticket_service.fetch_ticket(conn, str(ticket_id), for_update=True)
+    changes: dict[str, Any] = {}
+    if body.priority is not None and body.priority != ticket["priority"]:
+        changes["priority"] = body.priority
+    if body.category_id is not None and str(body.category_id) != str(ticket["category_id"]):
+        with conn.cursor() as cur:
+            cur.execute("select 1 from categories where id = %s and is_active", (str(body.category_id),))
+            if cur.fetchone() is None:
+                raise HTTPException(status_code=422, detail="Unknown category")
+        changes["category_id"] = str(body.category_id)
+    if body.due_at is not None:
+        changes["due_at"] = body.due_at
+    if not changes:
+        return ticket
+    ticket_service.update_ticket(conn, str(ticket_id), assignments=changes, expected_version=body.version)
+    old = {k: (str(ticket[k]) if ticket[k] is not None else None) for k in changes}
+    new = {k: (v.isoformat() if isinstance(v, datetime) else v) for k, v in changes.items()}
+    write_audit(
+        conn,
+        ticket_id=str(ticket_id),
+        user_id=principal.user_id,
+        action="priority_changed" if list(changes) == ["priority"] else "ticket_updated",
+        old_value=old,
+        new_value=new,
+        ip_address=client_ip(request),
+    )
+    updated = ticket_service.fetch_ticket(conn, str(ticket_id))
+    conn.commit()
+    return updated
+
+
+@router.get("/{ticket_id}/history")
+def ticket_history(
+    ticket_id: UUID,
+    principal: Principal = Depends(get_current_principal),
+    conn: psycopg.Connection = Depends(get_db),
+) -> list[dict[str, Any]]:
+    """Ticket audit history (spec §3.2-3.4 "View ticket history", §24).
+
+    Rows come through audit_logs_select RLS (0006 migration): clients never
+    receive internal-note events or rows tagged internal; team members only
+    see history of tickets assigned to them. IP addresses are returned to
+    admins only."""
+    ticket_service.fetch_ticket(conn, str(ticket_id))  # 404 if not visible
+    ip_column = "a.ip_address" if principal.role.is_admin else "null as ip_address"
+    with conn.cursor() as cur:
+        cur.execute(
+            f"""
+            select a.id, a.action, a.old_value, a.new_value, a.user_id, u.name as actor_name,
+                   {ip_column}, a.created_at
+            from audit_logs a
+            left join users u on u.id = a.user_id
+            where a.ticket_id = %s
+            order by a.created_at, a.id
+            """,  # noqa: S608 - ip_column is one of two code literals
+            (str(ticket_id),),
+        )
+        return rows_as_dicts(cur)
