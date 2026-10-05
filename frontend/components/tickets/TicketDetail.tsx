@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { PriorityBadge, StatusBadge } from "@/components/tickets/Badges";
+import { TicketHistory, TriagePanel } from "@/components/tickets/TicketExtras";
+import { OverdueBadge, PriorityBadge, StatusBadge } from "@/components/tickets/Badges";
 import {
   apiJson,
   canClose,
@@ -115,6 +116,7 @@ export function TicketDetail({ ticketId, backHref }: { ticketId: string; backHre
         <div className="mt-3 flex gap-2">
           <PriorityBadge priority={t.priority} />
           <StatusBadge status={t.status} />
+          {t.is_overdue && <OverdueBadge />}
         </div>
         <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-3">
           {staff && <Field label="Client" value={t.organization_name ?? "-"} />}
@@ -163,6 +165,7 @@ export function TicketDetail({ ticketId, backHref }: { ticketId: string; backHre
           onClose={closeTicket}
         />
         {actionError && <p className="mt-3 text-sm text-red-600">{actionError}</p>}
+        {admin && <TriagePanel key={t.version} ticket={t} onSaved={refresh} />}
       </div>
 
       <AttachmentsSection ticketId={ticketId} attachments={attachments.data ?? []} onUploaded={refresh} />
@@ -177,6 +180,8 @@ export function TicketDetail({ ticketId, backHref }: { ticketId: string; backHre
           <ReplyBox ticketId={ticketId} staff={staff} onPosted={refresh} />
         )}
       </section>
+
+      <TicketHistory ticketId={ticketId} />
     </main>
   );
 }

@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { PriorityBadge, StatusBadge } from "@/components/tickets/Badges";
+import { OverdueBadge, PriorityBadge, StatusBadge } from "@/components/tickets/Badges";
 import {
   apiJson,
   formatDate,
   PAGE_SIZES,
   PRIORITIES,
+  SORT_OPTIONS,
   STATUSES,
   statusLabel,
   ticketListPath,
@@ -21,16 +22,23 @@ type Props = {
   showCreate?: boolean;
   showOrganization?: boolean;
   emptyMessage?: string;
+  /** Admin-only filters (overdue / unassigned). UX only - the API enforces access. */
+  adminFilters?: boolean;
 };
 
 /** Ticket list. Which rows appear is decided entirely by the API + RLS. */
-export function TicketList({ title, basePath, showCreate, showOrganization, emptyMessage }: Props) {
+export function TicketList({ title, basePath, showCreate, showOrganization, emptyMessage, adminFilters }: Props) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<number>(25);
   const [status, setStatus] = useState("");
   const [priority, setPriority] = useState("");
+  const [search, setSearch] = useState("");
+  const [q, setQ] = useState("");
+  const [sort, setSort] = useState("default");
+  const [overdue, setOverdue] = useState(false);
+  const [unassigned, setUnassigned] = useState(false);
 
-  const path = ticketListPath({ page, pageSize, status, priority });
+  const path = ticketListPath({ page, pageSize, status, priority, q, sort, overdue, unassigned });
   const { data, isLoading, error } = useQuery({
     queryKey: ["tickets", path],
     queryFn: () => apiJson<TicketPage>(path),
@@ -41,7 +49,7 @@ export function TicketList({ title, basePath, showCreate, showOrganization, empt
   const selectClass = "rounded-md border border-slate-300 px-2 py-1.5 text-sm";
 
   return (
-    <main className="mx-auto max-w-5xl p-8">
+    <main className="mx-auto max-w-6xl p-8">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-slate-900">{title}</h1>
         {showCreate && (
@@ -55,6 +63,67 @@ export function TicketList({ title, basePath, showCreate, showOrganization, empt
       </div>
 
       <div className="mt-6 flex flex-wrap gap-3">
+        <form
+          className="flex gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            setQ(search);
+            setPage(1);
+          }}
+        >
+          <input
+            type="search"
+            aria-label="Search tickets"
+            placeholder="Search number, subject, client, user..."
+            className="w-72 rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          <button type="submit" className="rounded-md border border-slate-300 px-3 py-1.5 text-sm">
+            Search
+          </button>
+        </form>
+        <select
+          aria-label="Sort"
+          className={selectClass}
+          value={sort}
+          onChange={(e) => {
+            setSort(e.target.value);
+            setPage(1);
+          }}
+        >
+          {SORT_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+        {adminFilters && (
+          <>
+            <label className="flex items-center gap-1 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                checked={overdue}
+                onChange={(e) => {
+                  setOverdue(e.target.checked);
+                  setPage(1);
+                }}
+              />
+              Overdue
+            </label>
+            <label className="flex items-center gap-1 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                checked={unassigned}
+                onChange={(e) => {
+                  setUnassigned(e.target.checked);
+                  setPage(1);
+                }}
+              />
+              Unassigned
+            </label>
+          </>
+        )}
         <select
           aria-label="Status filter"
           className={selectClass}
@@ -104,7 +173,9 @@ export function TicketList({ title, basePath, showCreate, showOrganization, empt
                 {showOrganization && <th className="px-4 py-2 font-medium">Client</th>}
                 <th className="px-4 py-2 font-medium">Priority</th>
                 <th className="px-4 py-2 font-medium">Status</th>
+                <th className="px-4 py-2 font-medium">Assigned To</th>
                 <th className="px-4 py-2 font-medium">Created</th>
+                <th className="px-4 py-2 font-medium">Due</th>
               </tr>
             </thead>
             <tbody>
@@ -123,7 +194,13 @@ export function TicketList({ title, basePath, showCreate, showOrganization, empt
                   <td className="px-4 py-2">
                     <StatusBadge status={t.status} />
                   </td>
+                  <td className="px-4 py-2 text-slate-600">
+                    {t.assigned_to ? (t.assigned_to_name ?? "Clickfield AI team") : "Unassigned"}
+                  </td>
                   <td className="px-4 py-2 text-slate-500">{formatDate(t.created_at)}</td>
+                  <td className="px-4 py-2 text-slate-500">
+                    {formatDate(t.due_at)} {t.is_overdue && <OverdueBadge />}
+                  </td>
                 </tr>
               ))}
             </tbody>

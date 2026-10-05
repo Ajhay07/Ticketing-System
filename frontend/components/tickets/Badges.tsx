@@ -31,3 +31,8 @@ export function StatusBadge({ status }: { status: TicketStatus }) {
     </span>
   );
 }
+
+/** Spec §25: overdue is a computed flag from the API (never auto-closed). */
+export function OverdueBadge() {
+  return <span className="rounded bg-red-600 px-2 py-0.5 text-xs font-medium text-white">Overdue</span>;
+}

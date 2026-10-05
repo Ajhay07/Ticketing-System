@@ -41,6 +41,9 @@ export type Ticket = {
   created_by: string;
   created_by_name: string | null;
   due_at: string | null;
+  response_due_at?: string | null;
+  first_response_at?: string | null;
+  is_overdue?: boolean;
   resolution_summary: string | null;
   resolved_at: string | null;
   closed_at: string | null;
@@ -89,15 +92,38 @@ export async function apiJson<T>(path: string, init: RequestInit = {}): Promise<
   return body as T;
 }
 
-export function ticketListPath(params: {
+export const SORT_OPTIONS = [
+  { value: "default", label: "Most urgent" },
+  { value: "newest", label: "Newest" },
+  { value: "oldest", label: "Oldest" },
+  { value: "priority", label: "Priority" },
+  { value: "due", label: "Due date" },
+  { value: "updated", label: "Last updated" },
+  { value: "resolved", label: "Recently resolved" },
+] as const;
+
+export type TicketListParams = {
   page: number;
   pageSize: number;
   status?: string;
   priority?: string;
-}): string {
+  q?: string;
+  sort?: string;
+  overdue?: boolean;
+  unassigned?: boolean;
+  organizationId?: string;
+};
+
+/** Builds the list URL. Filters only narrow what the API/RLS already allow. */
+export function ticketListPath(params: TicketListParams): string {
   const query = new URLSearchParams({ page: String(params.page), page_size: String(params.pageSize) });
   if (params.status) query.set("status", params.status);
   if (params.priority) query.set("priority", params.priority);
+  if (params.q && params.q.trim()) query.set("q", params.q.trim());
+  if (params.sort && params.sort !== "default") query.set("sort", params.sort);
+  if (params.overdue) query.set("overdue", "true");
+  if (params.unassigned) query.set("assigned_to", "unassigned");
+  if (params.organizationId) query.set("organization_id", params.organizationId);
   return `/api/tickets?${query.toString()}`;
 }
 
