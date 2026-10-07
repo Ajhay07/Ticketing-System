@@ -1,75 +1,71 @@
+import Image from "next/image";
+
 import { cn } from "@/components/ui/cn";
 
 /**
  * ClickfieldAI brand mark. This is the ONLY place logo markup lives - every
  * shell, auth page and header renders <ClickfieldLogo />.
  *
- * No official logo file exists in the repo yet, so the mark is a drawn icon
- * using the `brand-*` tokens from tailwind.config.ts. To drop in a real logo
- * later: put it in /public (e.g. /public/clickfieldai-mark.svg) and set
- * LOGO_MARK_SRC below; the icon slot will render the image instead.
+ * Renders the OFFICIAL logo file (public/branding/clickfieldai-logo.webp,
+ * 1968x798, black wordmark with generous white margins). It is never redrawn
+ * or recoloured. The source file has wide built-in whitespace, so the image is
+ * shown inside a fixed-aspect window that hides most of that margin (pure CSS
+ * offsets on the same file - the pixels and proportions are untouched).
+ * See docs/BRANDING.md.
  */
 export const BRAND_NAME = "ClickfieldAI";
-const LOGO_MARK_SRC: string | null = null;
+export const LOGO_SRC = "/branding/clickfieldai-logo.webp";
+
+const LOGO_W = 1968;
+const LOGO_H = 798;
+// Visible window inside the source file (ink box 1518x184 at 222,294, plus padding).
+const CROP = { left: 196, top: 270, width: 1572, height: 236 };
 
 type Size = "sm" | "md" | "lg";
 
-const MARK_SIZE: Record<Size, string> = {
-  sm: "h-7 w-7 rounded-md",
-  md: "h-8 w-8 rounded-md",
-  lg: "h-11 w-11 rounded-lg",
-};
-const GLYPH_SIZE: Record<Size, string> = { sm: "h-4 w-4", md: "h-[18px] w-[18px]", lg: "h-6 w-6" };
-const TEXT_SIZE: Record<Size, string> = { sm: "text-sm", md: "text-sm", lg: "text-lg" };
+const HEIGHT: Record<Size, string> = { sm: "h-5", md: "h-6", lg: "h-9" };
 
 export function ClickfieldLogo({
-  variant = "full",
   size = "md",
   sub,
   className,
+  priority = true,
 }: {
-  /** full = icon + wordmark, compact = icon only */
-  variant?: "full" | "compact";
   size?: Size;
   /** optional small caption under the wordmark (e.g. "Admin console") */
   sub?: string;
   className?: string;
+  priority?: boolean;
 }) {
-  const mark = LOGO_MARK_SRC ? (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img src={LOGO_MARK_SRC} alt="" className={cn("shrink-0 object-contain", MARK_SIZE[size])} />
-  ) : (
+  const mark = (
     <span
-      className={cn(
-        "flex shrink-0 items-center justify-center bg-brand-600 text-white shadow-sm",
-        MARK_SIZE[size]
-      )}
-      aria-hidden
+      className={cn("relative block shrink-0 overflow-hidden", HEIGHT[size])}
+      style={{ aspectRatio: `${CROP.width} / ${CROP.height}` }}
     >
-      <svg viewBox="0 0 24 24" className={GLYPH_SIZE[size]} fill="none" stroke="currentColor" strokeWidth={2.5}>
-        <path d="M17 7.5a6 6 0 1 0 0 9" strokeLinecap="round" />
-        <circle cx="17.5" cy="12" r="1.6" fill="currentColor" stroke="none" />
-      </svg>
+      <Image
+        src={LOGO_SRC}
+        alt={BRAND_NAME}
+        width={LOGO_W}
+        height={LOGO_H}
+        priority={priority}
+        sizes="320px"
+        className="block h-auto max-w-none select-none object-contain"
+        draggable={false}
+        style={{
+          width: `${(LOGO_W / CROP.width) * 100}%`,
+          marginLeft: `${(-CROP.left / CROP.width) * 100}%`,
+          marginTop: `${(-CROP.top / CROP.width) * 100}%`,
+        }}
+      />
     </span>
   );
 
-  if (variant === "compact") {
-    return (
-      <span className={cn("inline-flex", className)} role="img" aria-label={BRAND_NAME}>
-        {mark}
-      </span>
-    );
-  }
+  if (!sub) return <span className={cn("inline-flex", className)}>{mark}</span>;
 
   return (
-    <span className={cn("inline-flex items-center gap-2.5", className)}>
+    <span className={cn("inline-flex flex-col items-start gap-1", className)}>
       {mark}
-      <span className="leading-tight">
-        <span className={cn("block font-semibold tracking-tight text-slate-900", TEXT_SIZE[size])}>
-          Clickfield<span className="text-brand-600">AI</span>
-        </span>
-        {sub && <span className="block text-2xs font-medium uppercase tracking-wider text-slate-400">{sub}</span>}
-      </span>
+      <span className="block text-2xs font-medium uppercase tracking-wider text-slate-400">{sub}</span>
     </span>
   );
 }
