@@ -1,6 +1,11 @@
+import Image from "next/image";
 import { BRAND_NAME, ClickfieldLogo } from "@/components/ClickfieldLogo";
 
-/** Centered card used by the unauthenticated pages (login, password reset). */
+/**
+ * Unauthenticated layout (login, password reset): Swiss split screen. Left is
+ * an editorial panel (monochrome architecture + cobalt block), shown from lg;
+ * right is the form column.
+ */
 export function AuthCard({
   title,
   subtitle,
@@ -13,16 +18,43 @@ export function AuthCard({
   footer?: React.ReactNode;
 }) {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-slate-50 px-4 py-12">
-      <div className="w-full max-w-[400px]">
-        <div className="mb-6 flex flex-col items-center text-center">
-          <ClickfieldLogo size="lg" />
-          <h1 className="mt-5 text-xl font-semibold tracking-tight text-slate-900">{title}</h1>
-          {subtitle && <p className="mt-1.5 text-sm text-slate-500">{subtitle}</p>}
+    <main className="grid min-h-screen bg-white lg:grid-cols-2">
+      <section aria-hidden className="relative hidden overflow-hidden border-r border-cf-ink bg-cf-soft lg:block">
+        <div className="cf-dot-grid absolute inset-0 opacity-60" />
+        <div className="absolute left-16 top-16 h-56 w-56 bg-cf-blue" />
+        <div className="absolute bottom-0 left-28 right-0 top-32 overflow-hidden">
+          <Image
+            src="/design-assets/08_brutalist_building_03.jpg"
+            alt=""
+            fill
+            sizes="50vw"
+            className="scale-[1.04] object-cover grayscale"
+            priority
+          />
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-lg sm:p-8">{children}</div>
-        {footer && <div className="mt-6 text-center text-sm text-slate-500">{footer}</div>}
-        <p className="mt-8 text-center text-xs text-slate-400">{BRAND_NAME} &middot; Client Support Portal</p>
+        <div className="absolute bottom-16 left-16 bg-white px-6 py-5">
+          <p className="text-[28px] font-extrabold uppercase leading-[0.98] tracking-[-0.03em] text-cf-black">
+            Track.
+            <br />
+            Prioritize.
+            <br />
+            Resolve.
+          </p>
+        </div>
+      </section>
+
+      <div className="flex flex-col justify-center px-4 py-12 sm:px-12">
+        <div className="mx-auto w-full max-w-[400px]">
+          <ClickfieldLogo size="lg" />
+          <p className="cf-label mt-10">Support portal</p>
+          <h1 className="mt-3 text-[34px] font-extrabold leading-none tracking-[-0.04em] text-cf-black sm:text-[40px]">
+            {title}
+          </h1>
+          {subtitle && <p className="mt-3 text-sm leading-relaxed text-cf-slate">{subtitle}</p>}
+          <div className="mt-8 border-t border-cf-ink pt-8">{children}</div>
+          {footer && <div className="mt-6 text-sm text-cf-slate">{footer}</div>}
+          <p className="cf-label mt-12 !text-[10px] !text-cf-muted">{BRAND_NAME} &middot; Client Support Portal</p>
+        </div>
       </div>
     </main>
   );

@@ -63,9 +63,9 @@ export function ClickfieldLogo({
   if (!sub) return <span className={cn("inline-flex", className)}>{mark}</span>;
 
   return (
-    <span className={cn("inline-flex flex-col items-start gap-1", className)}>
+    <span className={cn("inline-flex flex-col items-start gap-2", className)}>
       {mark}
-      <span className="block text-2xs font-medium uppercase tracking-wider text-slate-400">{sub}</span>
+      <span className="block text-[10px] font-bold uppercase tracking-[0.14em] text-cf-ink">{sub}</span>
     </span>
   );
 }

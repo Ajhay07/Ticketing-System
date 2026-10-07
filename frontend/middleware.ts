@@ -48,5 +48,5 @@ export async function middleware(request: NextRequest) {
 export const config = {
   // Public static assets (logo, favicons) must load without a session - the
   // login page and emails need them.
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|icon.png|apple-icon.png|branding/).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|icon.png|apple-icon.png|branding/|design-assets/).*)"],
 };

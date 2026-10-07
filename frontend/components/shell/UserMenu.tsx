@@ -38,23 +38,23 @@ export function SidebarUser() {
   const { logout, pending } = useLogout();
   const email = me.data?.email ?? "";
   return (
-    <div className="border-t border-slate-200 p-3">
-      <div className="flex items-center gap-3 rounded-md px-2 py-2">
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-semibold text-slate-600">
+    <div className="border-t border-cf-border px-4 py-4">
+      <div className="flex items-center gap-3 px-2 py-2">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded bg-cf-black text-xs font-bold text-white">
           {email ? initials(email) : ""}
         </span>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium text-slate-900" title={email}>
+          <p className="truncate text-[13px] font-semibold text-cf-ink" title={email}>
             {email || "Signed in"}
           </p>
-          <p className="truncate text-xs text-slate-500">{me.data ? statusLabel(me.data.role) : " "}</p>
+          <p className="cf-label mt-0.5 truncate !text-[10px]">{me.data ? statusLabel(me.data.role) : " "}</p>
         </div>
       </div>
       <button
         type="button"
         onClick={logout}
         disabled={pending}
-        className={cn(buttonClasses("ghost", "md"), "mt-1 w-full justify-start px-2 text-slate-600")}
+        className={cn(buttonClasses("ghost", "md"), "mt-2 w-full justify-start px-2 text-cf-slate")}
       >
         {pending ? <Spinner /> : <LogOut className="h-4 w-4" />}
         Log out

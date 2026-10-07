@@ -9,11 +9,12 @@ const PRIORITY_TONES: Record<Priority, BadgeTone> = {
   CRITICAL: "redSolid",
 };
 
-/** One distinct tone per lifecycle state (spec §34 "clear status badges"). */
+/** One distinct tone per lifecycle state (spec §34 "clear status badges"), on the --cf-* palette:
+ * blue = open/active, yellow = waiting, green = resolved, orange = reopened, slate = closed. */
 const STATUS_TONES: Record<TicketStatus, BadgeTone> = {
   OPEN: "blue",
   TRIAGED: "indigo",
-  ASSIGNED: "violet",
+  ASSIGNED: "ink",
   IN_PROGRESS: "cyan",
   WAITING_FOR_CLIENT: "amber",
   RESOLVED: "green",
@@ -61,7 +62,6 @@ export function OverdueBadge() {
     <Badge
       tone="red"
       icon={<AlertTriangle className="h-3 w-3" aria-hidden />}
-      className="font-semibold uppercase tracking-wide"
     >
       Overdue
     </Badge>

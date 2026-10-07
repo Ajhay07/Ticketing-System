@@ -18,6 +18,7 @@ import { cn } from "@/components/ui/cn";
 import { buttonClasses } from "@/components/ui/Button";
 import { LogoutButton, SidebarUser } from "@/components/shell/UserMenu";
 import { ClickfieldLogo } from "@/components/ClickfieldLogo";
+import { TopBar } from "@/components/shell/TopBar";
 
 type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
 
@@ -59,7 +60,7 @@ function isActive(pathname: string, href: string) {
 
 function SidebarNav({ items, pathname, onNavigate }: { items: NavItem[]; pathname: string; onNavigate?: () => void }) {
   return (
-    <nav aria-label="Main" className="flex flex-col gap-0.5">
+    <nav aria-label="Main" className="flex flex-col gap-1">
       {items.map(({ href, label, icon: Icon }) => {
         const active = isActive(pathname, href);
         return (
@@ -69,12 +70,11 @@ function SidebarNav({ items, pathname, onNavigate }: { items: NavItem[]; pathnam
             onClick={onNavigate}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "group relative flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-              active ? "bg-brand-50 text-brand-700" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+              "group flex h-11 items-center gap-3 rounded-md px-3 text-sm font-semibold tracking-[-0.01em] transition-colors duration-150",
+              active ? "bg-cf-black text-white" : "text-cf-slate hover:bg-cf-soft hover:text-cf-ink"
             )}
           >
-            {active && <span className="absolute inset-y-1.5 left-0 w-[3px] rounded-r bg-brand-600" aria-hidden />}
-            <Icon className={cn("h-4 w-4", active ? "text-brand-600" : "text-slate-400 group-hover:text-slate-600")} />
+            <Icon className={cn("h-[18px] w-[18px]", active ? "text-white" : "text-cf-slate group-hover:text-cf-ink")} />
             {label}
           </Link>
         );
@@ -98,13 +98,13 @@ export function SidebarShell({ area, children }: { area: "admin" | "team"; child
 
   const sidebarBody = (
     <>
-      <div className="flex h-16 items-center px-5">
-        <Link href={nav.items[0]?.href ?? "/"} className="rounded-md">
+      <div className="flex h-24 items-center border-b border-cf-border px-6">
+        <Link href={nav.items[0]?.href ?? "/"} className="rounded-sm">
           <ClickfieldLogo sub={nav.label === "Admin" ? "Admin console" : "Team workspace"} />
         </Link>
       </div>
-      <div className="flex-1 overflow-y-auto px-3 pb-2 pt-3">
-        <p className="px-3 pb-2 text-2xs font-semibold uppercase tracking-wider text-slate-400">Menu</p>
+      <div className="flex-1 overflow-y-auto px-4 pb-2 pt-6">
+        <p className="cf-label px-3 pb-3 !text-[10px] !text-cf-muted">Menu</p>
         <SidebarNav items={nav.items} pathname={pathname} onNavigate={() => setOpen(false)} />
       </div>
       <SidebarUser />
@@ -114,12 +114,12 @@ export function SidebarShell({ area, children }: { area: "admin" | "team"; child
   return (
     <div className="min-h-screen">
       {/* Desktop sidebar */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-slate-200 bg-white lg:flex">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[264px] flex-col border-r border-cf-border bg-white lg:flex">
         {sidebarBody}
       </aside>
 
       {/* Mobile top bar */}
-      <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-slate-200 bg-white/95 px-4 backdrop-blur lg:hidden">
+      <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-cf-border bg-white px-4 lg:hidden">
         <ClickfieldLogo size="sm" />
         <button
           type="button"
@@ -135,12 +135,12 @@ export function SidebarShell({ area, children }: { area: "admin" | "team"; child
       {/* Mobile drawer */}
       {open && (
         <div className="fixed inset-0 z-40 lg:hidden" role="dialog" aria-modal="true" aria-label="Navigation">
-          <div className="absolute inset-0 bg-slate-900/40" onClick={() => setOpen(false)} aria-hidden />
-          <aside className="absolute inset-y-0 left-0 flex w-72 max-w-[85%] flex-col bg-white shadow-lg">
+          <div className="absolute inset-0 bg-cf-black/50" onClick={() => setOpen(false)} aria-hidden />
+          <aside className="absolute inset-y-0 left-0 flex w-[280px] max-w-[85%] flex-col border-r border-cf-ink bg-white">
             <button
               type="button"
               onClick={() => setOpen(false)}
-              className={buttonClasses("ghost", "md", "absolute right-3 top-3.5 w-9 px-0")}
+              className={buttonClasses("ghost", "md", "absolute right-3 top-7 w-10 px-0")}
               aria-label="Close navigation"
             >
               <X className="h-5 w-5" />
@@ -150,7 +150,10 @@ export function SidebarShell({ area, children }: { area: "admin" | "team"; child
         </div>
       )}
 
-      <div className="lg:pl-60">{children}</div>
+      <div className="lg:pl-[264px]">
+        <TopBar ticketsPath={`/${area}/tickets`} dashboardPath={`/${area}/dashboard`} />
+        {children}
+      </div>
     </div>
   );
 }
@@ -161,8 +164,8 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
   const items = NAV.client.items;
   return (
     <div className="min-h-screen">
-      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
-        <div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-4 px-4 sm:h-16 sm:px-6 lg:px-8">
+      <header className="sticky top-0 z-30 border-b border-cf-border bg-white">
+        <div className="mx-auto flex h-14 max-w-[1440px] items-center justify-between gap-4 px-4 sm:h-20 sm:px-6 lg:px-10">
           <div className="flex min-w-0 items-center gap-6">
             <Link href="/client/dashboard" className="rounded-md">
               <ClickfieldLogo sub="Support portal" />
@@ -179,8 +182,8 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
                     href={href}
                     aria-current={active ? "page" : undefined}
                     className={cn(
-                      "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-                      active ? "bg-brand-50 text-brand-700" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                      "flex h-10 items-center rounded-md px-3 text-sm font-semibold transition-colors duration-150",
+                      active ? "bg-cf-black text-white" : "text-cf-slate hover:bg-cf-soft hover:text-cf-ink"
                     )}
                   >
                     {label}
@@ -195,11 +198,11 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
               <span className="hidden sm:inline">Create ticket</span>
               <span className="sm:hidden">New</span>
             </Link>
-            <LogoutButton className="w-9 px-0 md:w-auto md:px-3.5" />
+            <LogoutButton className="w-10 px-0 md:w-auto md:px-4" />
           </div>
         </div>
         {/* Mobile tab row */}
-        <nav aria-label="Main mobile" className="flex gap-1 border-t border-slate-100 px-4 py-1.5 sm:hidden">
+        <nav aria-label="Main mobile" className="flex gap-1 border-t border-cf-border px-4 py-2 sm:hidden">
           {items.map(({ href, label, icon: Icon }) => {
             const active =
               href === "/client/tickets" ? pathname.startsWith("/client/tickets") : isActive(pathname, href);
@@ -209,8 +212,8 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
                 href={href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "flex flex-1 items-center justify-center gap-1.5 rounded-md py-1.5 text-sm font-medium",
-                  active ? "bg-brand-50 text-brand-700" : "text-slate-600"
+                  "flex h-10 flex-1 items-center justify-center gap-1.5 rounded-md text-sm font-semibold",
+                  active ? "bg-cf-black text-white" : "text-cf-slate"
                 )}
               >
                 <Icon className="h-4 w-4" />
