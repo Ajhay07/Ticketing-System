@@ -10,19 +10,26 @@ export type BadgeTone =
   | "orange"
   | "green"
   | "red"
-  | "redSolid";
+  | "redSolid"
+  | "ink";
 
+/**
+ * Compact, square-cornered status chips on the --cf-* palette. Colour carries
+ * meaning: blue = open/info, yellow = waiting, orange = high, red = critical /
+ * overdue, green = resolved, purple = unassigned, slate = low/neutral.
+ */
 const TONES: Record<BadgeTone, { pill: string; dot: string }> = {
-  slate: { pill: "bg-slate-100 text-slate-700 ring-slate-500/15", dot: "bg-slate-400" },
-  blue: { pill: "bg-blue-50 text-blue-700 ring-blue-600/15", dot: "bg-blue-500" },
-  indigo: { pill: "bg-indigo-50 text-indigo-700 ring-indigo-600/15", dot: "bg-indigo-500" },
-  violet: { pill: "bg-violet-50 text-violet-700 ring-violet-600/15", dot: "bg-violet-500" },
-  cyan: { pill: "bg-cyan-50 text-cyan-800 ring-cyan-600/20", dot: "bg-cyan-500" },
-  amber: { pill: "bg-amber-50 text-amber-800 ring-amber-600/20", dot: "bg-amber-500" },
-  orange: { pill: "bg-orange-50 text-orange-700 ring-orange-600/20", dot: "bg-orange-500" },
-  green: { pill: "bg-emerald-50 text-emerald-700 ring-emerald-600/20", dot: "bg-emerald-500" },
-  red: { pill: "bg-red-50 text-red-700 ring-red-600/20", dot: "bg-red-500" },
-  redSolid: { pill: "bg-red-600 text-white ring-red-700/30", dot: "bg-white" },
+  slate: { pill: "border-cf-border bg-cf-soft text-cf-slate", dot: "bg-cf-muted" },
+  ink: { pill: "border-cf-ink bg-white text-cf-ink", dot: "bg-cf-ink" },
+  blue: { pill: "border-blue-200 bg-blue-50 text-blue-700", dot: "bg-cf-blue" },
+  indigo: { pill: "border-blue-200 bg-white text-blue-700", dot: "bg-cf-blue" },
+  violet: { pill: "border-violet-200 bg-violet-50 text-violet-700", dot: "bg-cf-purple" },
+  cyan: { pill: "border-cf-blue bg-cf-blue text-white", dot: "bg-white" },
+  amber: { pill: "border-yellow-300 bg-yellow-50 text-yellow-800", dot: "bg-cf-yellow" },
+  orange: { pill: "border-orange-200 bg-orange-50 text-orange-700", dot: "bg-cf-orange" },
+  green: { pill: "border-emerald-200 bg-emerald-50 text-emerald-700", dot: "bg-cf-green" },
+  red: { pill: "border-red-200 bg-red-50 text-red-700", dot: "bg-cf-red" },
+  redSolid: { pill: "border-cf-red bg-cf-red text-white", dot: "bg-white" },
 };
 
 export function Badge({
@@ -42,12 +49,12 @@ export function Badge({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset",
+        "inline-flex h-[22px] items-center gap-1.5 whitespace-nowrap rounded-sm border px-1.5 text-[11px] font-semibold uppercase leading-none tracking-[0.06em]",
         t.pill,
         className
       )}
     >
-      {dot && <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", t.dot)} aria-hidden />}
+      {dot && <span className={cn("h-1.5 w-1.5 shrink-0", t.dot)} aria-hidden />}
       {icon}
       {children}
     </span>

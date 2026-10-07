@@ -1,7 +1,8 @@
 import { cn } from "./cn";
 
+/** Flat white panel with a 1px structural border (no shadow, restrained radius). */
 export function Card({ className, children }: { className?: string; children: React.ReactNode }) {
-  return <div className={cn("rounded-lg border border-slate-200 bg-white shadow-sm", className)}>{children}</div>;
+  return <div className={cn("rounded border border-cf-border bg-white", className)}>{children}</div>;
 }
 
 export function CardHeader({
@@ -16,12 +17,12 @@ export function CardHeader({
   icon?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-3.5">
+    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-cf-border px-5 py-4">
       <div className="flex min-w-0 items-center gap-2.5">
-        {icon && <span className="text-slate-400">{icon}</span>}
+        {icon && <span className="text-cf-ink">{icon}</span>}
         <div className="min-w-0">
-          <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
-          {description && <p className="mt-0.5 text-xs text-slate-500">{description}</p>}
+          <h2 className="cf-section">{title}</h2>
+          {description && <p className="mt-1 text-xs text-cf-slate">{description}</p>}
         </div>
       </div>
       {actions && <div className="flex items-center gap-2">{actions}</div>}
@@ -29,6 +30,10 @@ export function CardHeader({
   );
 }
 
+/**
+ * Page title block: optional uppercase eyebrow label, heavy editorial title,
+ * supporting line, and a thin rule underneath (Swiss header).
+ */
 export function PageHeader({
   title,
   description,
@@ -41,11 +46,11 @@ export function PageHeader({
   eyebrow?: React.ReactNode;
 }) {
   return (
-    <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+    <div className="mb-8 flex flex-wrap items-end justify-between gap-4 border-b border-cf-border pb-6">
       <div className="min-w-0">
-        {eyebrow && <div className="mb-2">{eyebrow}</div>}
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-900">{title}</h1>
-        {description && <p className="mt-1 text-sm text-slate-500">{description}</p>}
+        {eyebrow && <div className="mb-3">{eyebrow}</div>}
+        <h1 className="cf-title">{title}</h1>
+        {description && <p className="mt-3 text-sm leading-relaxed text-cf-slate">{description}</p>}
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
     </div>
@@ -62,17 +67,17 @@ export function SectionTitle({
   actions?: React.ReactNode;
 }) {
   return (
-    <div className={cn("mb-3 flex items-center justify-between gap-3", className)}>
-      <h2 className="text-base font-semibold text-slate-900">{children}</h2>
+    <div className={cn("mb-4 flex items-center justify-between gap-3", className)}>
+      <h2 className="cf-section">{children}</h2>
       {actions}
     </div>
   );
 }
 
-/** Standard page container inside the app shell. */
+/** Standard page container inside the app shell (16 / 24 / 40px gutters). */
 export function Page({ children, narrow }: { children: React.ReactNode; narrow?: boolean }) {
   return (
-    <main className={cn("mx-auto w-full px-4 py-6 sm:px-6 lg:px-8 lg:py-8", narrow ? "max-w-3xl" : "max-w-7xl")}>
+    <main className={cn("mx-auto w-full px-4 py-6 sm:px-6 lg:px-10 lg:py-10", narrow ? "max-w-3xl" : "max-w-[1440px]")}>
       {children}
     </main>
   );

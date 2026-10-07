@@ -7,7 +7,7 @@ import { cn } from "./cn";
 /** Wraps a table so wide content scrolls horizontally inside its card. */
 export function TableContainer({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={cn("overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm", className)}>
+    <div className={cn("overflow-hidden rounded border border-cf-border bg-white", className)}>
       <div className="overflow-x-auto">{children}</div>
     </div>
   );
@@ -18,7 +18,7 @@ export function Table({ children, className }: { children: React.ReactNode; clas
 }
 
 export function THead({ children }: { children: React.ReactNode }) {
-  return <thead className="border-b border-slate-200 bg-slate-50/80">{children}</thead>;
+  return <thead className="border-b border-cf-ink bg-white">{children}</thead>;
 }
 
 export function TH({ children, className, align }: { children?: React.ReactNode; className?: string; align?: "right" }) {
@@ -26,7 +26,7 @@ export function TH({ children, className, align }: { children?: React.ReactNode;
     <th
       scope="col"
       className={cn(
-        "whitespace-nowrap px-4 py-2.5 text-2xs font-semibold uppercase tracking-wider text-slate-500",
+        "h-11 whitespace-nowrap px-4 text-[11px] font-bold uppercase tracking-[0.08em] text-cf-ink",
         align === "right" && "text-right",
         className
       )}
@@ -37,14 +37,14 @@ export function TH({ children, className, align }: { children?: React.ReactNode;
 }
 
 export function TBody({ children }: { children: React.ReactNode }) {
-  return <tbody className="divide-y divide-slate-100">{children}</tbody>;
+  return <tbody className="divide-y divide-cf-border">{children}</tbody>;
 }
 
 export function TD({ children, className, align }: { children?: React.ReactNode; className?: string; align?: "right" }) {
   return (
     <td
       className={cn(
-        "whitespace-nowrap px-4 py-3 align-middle text-slate-700",
+        "h-[52px] whitespace-nowrap px-4 py-2 align-middle text-[13px] text-slate-700",
         align === "right" && "text-right tabular",
         className
       )}
@@ -63,7 +63,7 @@ export function TR({ href, children, className }: { href?: string; children: Rea
   const router = useRouter();
   return (
     <tr
-      className={cn("transition-colors hover:bg-slate-50/80", href && "cursor-pointer", className)}
+      className={cn("transition-colors duration-150 hover:bg-cf-soft", href && "cursor-pointer", className)}
       onClick={
         href
           ? (e) => {
@@ -84,7 +84,7 @@ export function TicketNumberLink({ href, children }: { href: string; children: R
   return (
     <Link
       href={href}
-      className="rounded font-mono text-xs font-medium text-slate-500 hover:text-brand-700 hover:underline"
+      className="rounded-sm font-mono text-xs font-semibold text-cf-ink underline-offset-4 hover:underline"
     >
       {children}
     </Link>

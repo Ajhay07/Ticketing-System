@@ -2,9 +2,44 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * ClickfieldAI design tokens - Swiss / minimal / controlled brutalism.
+ * 80-90% of the UI is black / white / slate. Accent colours are functional:
+ * blue = open/info, yellow = waiting, orange = high, red = critical/overdue,
+ * green = resolved, purple = unassigned, gray = low/neutral.
+ */
 :root {
-  --background: 210 20% 98%;
-  --foreground: 222 30% 12%;
+  --cf-black: #000000;
+  --cf-ink: #0f172a;
+  --cf-slate: #64748b;
+  --cf-muted: #94a3b8;
+  --cf-border: #e2e8f0;
+  --cf-border-strong: #cbd5e1;
+  --cf-surface: #ffffff;
+  --cf-surface-soft: #f8fafc;
+  --cf-blue: #2563eb;
+  --cf-red: #dc2626;
+  --cf-orange: #f97316;
+  --cf-yellow: #eab308;
+  --cf-green: #10b981;
+  --cf-purple: #8b5cf6;
+
+  /* spacing scale (4/8/12/16/24/32/48/64) */
+  --cf-space-1: 4px;
+  --cf-space-2: 8px;
+  --cf-space-3: 12px;
+  --cf-space-4: 16px;
+  --cf-space-6: 24px;
+  --cf-space-8: 32px;
+  --cf-space-12: 48px;
+  --cf-space-16: 64px;
+
+  --cf-radius: 4px;
+  --cf-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+  --cf-ease: 150ms ease;
+
+  --background: 0 0% 100%;
+  --foreground: 222 47% 11%;
 }
 
 @layer base {
@@ -12,21 +47,90 @@
     -webkit-text-size-adjust: 100%;
   }
   body {
-    color: hsl(var(--foreground));
-    background: hsl(var(--background));
+    color: var(--cf-ink);
+    background: var(--cf-surface);
     font-feature-settings: "cv11", "ss01";
   }
-  h1, h2, h3 {
-    letter-spacing: -0.015em;
+  h1,
+  h2,
+  h3 {
+    letter-spacing: -0.02em;
   }
   /* Visible keyboard focus everywhere; mouse clicks don't show the ring. */
   :focus-visible {
-    outline: 2px solid #3b6ef6;
+    outline: 2px solid var(--cf-ink);
     outline-offset: 2px;
   }
   input[type="checkbox"],
   input[type="radio"] {
-    accent-color: #2557e6;
+    accent-color: var(--cf-black);
+  }
+}
+
+@layer components {
+  /* Oversized editorial display heading - major page titles only. */
+  .cf-display {
+    font-weight: 900;
+    letter-spacing: -0.05em;
+    line-height: 0.95;
+    color: var(--cf-black);
+    font-size: 40px;
+  }
+  @media (min-width: 768px) {
+    .cf-display {
+      font-size: 52px;
+    }
+  }
+  @media (min-width: 1280px) {
+    .cf-display {
+      font-size: 72px;
+    }
+  }
+  /* Page title (non-hero pages): strong but smaller than the display. */
+  .cf-title {
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    line-height: 1;
+    color: var(--cf-black);
+    font-size: 30px;
+  }
+  @media (min-width: 768px) {
+    .cf-title {
+      font-size: 40px;
+    }
+  }
+  /* Section heading: TICKET TRENDS, PRIORITY QUEUE ... */
+  .cf-section {
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    text-transform: uppercase;
+    color: var(--cf-ink);
+  }
+  /* Small uppercase label. */
+  .cf-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--cf-slate);
+  }
+  .cf-kpi {
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    line-height: 1;
+    font-size: 36px;
+    color: var(--cf-ink);
+  }
+  @media (min-width: 1280px) {
+    .cf-kpi {
+      font-size: 44px;
+    }
+  }
+  /* Subtle Swiss dot grid (redrawn from design-assets/10 as CSS). */
+  .cf-dot-grid {
+    background-image: radial-gradient(var(--cf-border-strong) 1px, transparent 1px);
+    background-size: 16px 16px;
   }
 }
 

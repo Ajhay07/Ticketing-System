@@ -2,9 +2,9 @@ import { forwardRef } from "react";
 import { cn } from "./cn";
 
 export const fieldClasses = cn(
-  "block w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 shadow-xs",
-  "placeholder:text-slate-400 transition-colors",
-  "hover:border-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20",
+  "block w-full rounded border border-cf-border-strong bg-white px-3 text-sm text-cf-ink",
+  "placeholder:text-cf-muted transition-colors duration-150",
+  "hover:border-cf-slate focus:border-cf-ink focus:outline-none focus:ring-1 focus:ring-cf-ink",
   "disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500"
 );
 
@@ -12,14 +12,14 @@ export const Input = forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTML
   { className, ...props },
   ref
 ) {
-  return <input ref={ref} className={cn(fieldClasses, "h-9", className)} {...props} />;
+  return <input ref={ref} className={cn(fieldClasses, "h-10", className)} {...props} />;
 });
 
 export const Select = forwardRef<HTMLSelectElement, React.SelectHTMLAttributes<HTMLSelectElement>>(function Select(
   { className, ...props },
   ref
 ) {
-  return <select ref={ref} className={cn(fieldClasses, "h-9 pr-8", className)} {...props} />;
+  return <select ref={ref} className={cn(fieldClasses, "h-10 pr-8", className)} {...props} />;
 });
 
 export const Textarea = forwardRef<HTMLTextAreaElement, React.TextareaHTMLAttributes<HTMLTextAreaElement>>(
@@ -40,9 +40,9 @@ export function Label({
   className?: string;
 }) {
   return (
-    <label htmlFor={htmlFor} className={cn("mb-1.5 block text-sm font-medium text-slate-700", className)}>
+    <label htmlFor={htmlFor} className={cn("mb-2 block text-[11px] font-bold uppercase tracking-[0.1em] text-cf-ink", className)}>
       {children}
-      {hint && <span className="ml-1 font-normal text-slate-400">{hint}</span>}
+      {hint && <span className="ml-1 font-medium normal-case tracking-normal text-cf-muted">{hint}</span>}
     </label>
   );
 }
@@ -67,7 +67,7 @@ export function FileInput({ className, ...props }: React.InputHTMLAttributes<HTM
       {...props}
       className={cn(
         "block w-full text-sm text-slate-600",
-        "file:mr-3 file:h-9 file:cursor-pointer file:rounded-md file:border file:border-solid file:border-slate-300 file:bg-white",
+        "file:mr-3 file:h-9 file:cursor-pointer file:rounded file:border file:border-solid file:border-cf-border-strong file:bg-white",
         "file:px-3 file:text-sm file:font-medium file:text-slate-700 hover:file:bg-slate-50",
         className
       )}
@@ -77,7 +77,7 @@ export function FileInput({ className, ...props }: React.InputHTMLAttributes<HTM
 
 export function ErrorText({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <p role="alert" className={cn("rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700", className)}>
+    <p role="alert" className={cn("rounded border border-l-4 border-red-200 border-l-cf-red bg-white px-3 py-2 text-sm text-red-700", className)}>
       {children}
     </p>
   );
