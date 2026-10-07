@@ -66,14 +66,14 @@ def test_templates_match_spec_subjects_and_escape_html() -> None:
     c = templates.new_ticket(
         number="CF-000001", subject="<b>x</b>", organization="NK", priority="HIGH", url="u"
     )
-    assert c.subject == "[Clickfield AI] New Ticket CF-000001 — <b>x</b>"
+    assert c.subject == "[ClickfieldAI] New Ticket CF-000001 — <b>x</b>"
     assert "<b>x</b>" not in c.html and "&lt;b&gt;" in c.html
     assert templates.ticket_assigned(number="CF-1", subject="s", priority="LOW", url="u").subject == (
-        "[Clickfield AI] Ticket CF-1 Assigned to You"
+        "[ClickfieldAI] Ticket CF-1 Assigned to You"
     )
     assert (
         templates.client_reply(number="CF-1", subject="s", url="u").subject
-        == "[Clickfield AI] New Reply — CF-1"
+        == "[ClickfieldAI] New Reply — CF-1"
     )
     assert "In Progress" in templates.status_changed(number="CF-1", status="IN_PROGRESS", url="u").html
     assert "confirm if the issue is fixed" in templates.ticket_resolved(number="CF-1", url="u").html
@@ -84,6 +84,8 @@ def test_templates_match_spec_subjects_and_escape_html() -> None:
 
 def test_provider_selection_noop_without_key(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(settings, "resend_api_key", "")
+    monkeypatch.setattr(settings, "email_provider", "")
+    monkeypatch.setattr(settings, "smtp_host", "")
     p = email_pkg.get_email_provider()
     assert p.name == "noop" and p.send(to="a@example.com", subject="s", html_body="h").startswith("noop-")
     monkeypatch.setattr(settings, "resend_api_key", "re_test_dummy")
@@ -297,3 +299,79 @@ def test_team_reply_in_app_notification_and_mark_read(dev: dict) -> None:
     )
     assert client.post("/api/notifications/read-all", headers=auth(s, "client_a")).status_code == 204
     assert client.get("/api/notifications", headers=auth(s, "client_a")).json()["unread"] == 0
+
+
+@requires_dev
+def test_team_reply_delivered_via_smtp_provider_without_leaking_credentials(
+    dev: dict, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Staff chat reply -> TEAM_REPLY job -> worker -> SmtpEmailProvider (smtplib
+    faked, everything else real DEV). The SMTP password must never appear in
+    email_logs, in any API response, or in an error message."""
+    import smtplib
+
+    s = dev
+    secret = "dev-test-smtp-password-not-real"
+    for k, v in {
+        "email_provider": "smtp",
+        "smtp_host": "smtp.example.test",
+        "smtp_username": "mailer@example.test",
+        "smtp_password": secret,
+        "smtp_from_email": "support@example.test",
+    }.items():
+        monkeypatch.setattr(settings, k, v)
+
+    sent: list[Any] = []
+    fail = {"on": False}
+
+    class FakeSMTP:
+        def __init__(self, *a: Any, **kw: Any) -> None:
+            pass
+
+        def __enter__(self) -> FakeSMTP:
+            return self
+
+        def __exit__(self, *a: object) -> None:
+            return None
+
+        def starttls(self, **kw: Any) -> None:
+            return None
+
+        def login(self, user: str, password: str) -> None:
+            if fail["on"]:
+                raise smtplib.SMTPAuthenticationError(535, f"rejected {user} {password}".encode())
+
+        def send_message(self, msg: Any) -> None:
+            sent.append(msg)
+
+    monkeypatch.setattr(email_pkg.smtplib, "SMTP", FakeSMTP)
+
+    r = client.post(
+        f"/api/tickets/{s['ticket']}/comments", headers=auth(s, "arjun"), json={"comment": "SMTP chat reply"}
+    )
+    assert r.status_code == 201 and secret not in r.text
+    job = _drain()[-1]
+    assert job["event"] == "TEAM_REPLY"
+
+    provider = email_pkg.get_email_provider()
+    assert provider.name == "smtp"
+    assert worker.process_job(job, provider=provider, sleep=lambda _: None)["emails_sent"] == 1
+    assert sent and sent[0]["To"] == s["client_a_email"]
+    assert sent[0]["Subject"].startswith("[ClickfieldAI] New Reply")
+    assert "SMTP chat reply" not in sent[0].as_string()  # templates never include message text
+
+    fail["on"] = True
+    assert worker.process_job(job, provider=provider, sleep=lambda _: None)["emails_failed"] == 1
+    rows = [r for r in _email_logs(s["ticket"]) if r[1] == "TEAM_REPLY" and r[2] == "smtp"]
+    assert [r[3] for r in rows[-2:]] == ["SENT", "FAILED"]
+    assert all(secret not in repr(row) for row in _email_logs(s["ticket"]))
+
+    for who in ("client_a", "arjun", "admin"):
+        for path in (
+            "/api/me",
+            f"/api/tickets/{s['ticket']}",
+            f"/api/tickets/{s['ticket']}/comments",
+            "/api/notifications",
+        ):
+            resp = client.get(path, headers=auth(s, who))
+            assert secret not in resp.text and "smtp_password" not in resp.text.lower()

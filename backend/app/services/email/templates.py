@@ -36,22 +36,59 @@ def _status_label(status: str) -> str:
     return status.replace("_", " ").title()
 
 
+BRAND_NAME = "ClickfieldAI"
+_BRAND = "#2557e6"  # brand-600 (frontend tailwind.config.ts)
+_INK = "#0f172a"
+_MUTED = "#64748b"
+_FONT = "Arial,Helvetica,sans-serif"
+
+
 def _layout(heading: str, lines: list[str], url: str) -> str:
-    body = "".join(f'<p style="margin:0 0 12px">{line}</p>' for line in lines)
+    """Branded, table-based, inline-styled layout (no external CSS/fonts) so it
+    renders consistently across email clients, including on mobile."""
+    body = "".join(
+        f'<p style="margin:0 0 12px;font-family:{_FONT};font-size:14px;line-height:1.5;color:{_INK}">'
+        f"{line}</p>"
+        for line in lines
+    )
+    href = escape(url, quote=True)
     return (
-        '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#0f172a;max-width:560px">'
-        f'<h2 style="font-size:18px;margin:0 0 16px">{heading}</h2>{body}'
-        f'<p style="margin:20px 0"><a href="{escape(url, quote=True)}" '
-        'style="background:#0f172a;color:#fff;padding:10px 16px;border-radius:6px;'
-        'text-decoration:none">Open Ticket</a></p>'
-        '<p style="color:#64748b;font-size:12px">Clickfield AI Support</p></div>'
+        '<!doctype html><html><body style="margin:0;padding:0;background:#f1f5f9">'
+        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" '
+        'style="background:#f1f5f9;padding:24px 12px"><tr><td align="center">'
+        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" '
+        'style="max-width:560px;background:#ffffff;border-radius:8px;border:1px solid #e2e8f0">'
+        # Header
+        f'<tr><td style="padding:18px 24px;border-bottom:3px solid {_BRAND}">'
+        '<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>'
+        f'<td style="background:{_BRAND};color:#ffffff;font-family:{_FONT};font-weight:bold;'
+        'font-size:14px;width:28px;height:28px;text-align:center;border-radius:6px">C</td>'
+        f'<td style="padding-left:10px;font-family:{_FONT};font-size:17px;font-weight:bold;color:{_INK}">'
+        f'Clickfield<span style="color:{_BRAND}">AI</span></td></tr></table></td></tr>'
+        # Body
+        f'<tr><td style="padding:24px">'
+        f'<h1 style="margin:0 0 16px;font-family:{_FONT};font-size:18px;line-height:1.3;color:{_INK}">'
+        f"{heading}</h1>"
+        f"{body}"
+        '<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:20px 0 4px"><tr>'
+        f'<td style="background:{_BRAND};border-radius:6px">'
+        f'<a href="{href}" style="display:inline-block;padding:11px 20px;font-family:{_FONT};font-size:14px;'
+        'font-weight:bold;color:#ffffff;text-decoration:none">Open Ticket</a></td></tr></table>'
+        f'<p style="margin:12px 0 0;font-family:{_FONT};font-size:12px;color:{_MUTED};word-break:break-all">'
+        f'Or open this link: <a href="{href}" style="color:{_BRAND}">{escape(url)}</a></p>'
+        "</td></tr>"
+        # Footer
+        f'<tr><td style="padding:16px 24px;border-top:1px solid #e2e8f0;font-family:{_FONT};font-size:12px;'
+        f'color:{_MUTED}">{BRAND_NAME} Support &middot; This is an automated message from the '
+        f"{BRAND_NAME} Ticketing System.</td></tr>"
+        "</table></td></tr></table></body></html>"
     )
 
 
 def new_ticket(*, number: str, subject: str, organization: str, priority: str, url: str) -> EmailContent:
     n, s = escape(number), escape(subject)
     return EmailContent(
-        subject=f"[Clickfield AI] New Ticket {number} — {subject}",
+        subject=f"[ClickfieldAI] New Ticket {number} — {subject}",
         html=_layout(
             f"New ticket {n}",
             [
@@ -66,7 +103,7 @@ def new_ticket(*, number: str, subject: str, organization: str, priority: str, u
 
 def ticket_assigned(*, number: str, subject: str, priority: str, url: str) -> EmailContent:
     return EmailContent(
-        subject=f"[Clickfield AI] Ticket {number} Assigned to You",
+        subject=f"[ClickfieldAI] Ticket {number} Assigned to You",
         html=_layout(
             f"Ticket {escape(number)} has been assigned to you",
             [f"<strong>{escape(subject)}</strong>", f"Priority: {escape(priority)}"],
@@ -77,7 +114,7 @@ def ticket_assigned(*, number: str, subject: str, priority: str, url: str) -> Em
 
 def client_reply(*, number: str, subject: str, url: str) -> EmailContent:
     return EmailContent(
-        subject=f"[Clickfield AI] New Reply — {number}",
+        subject=f"[ClickfieldAI] New Reply — {number}",
         html=_layout(
             f"The client replied on {escape(number)}",
             [f"<strong>{escape(subject)}</strong>", "Open the ticket to read the reply."],
@@ -88,7 +125,7 @@ def client_reply(*, number: str, subject: str, url: str) -> EmailContent:
 
 def team_reply(*, number: str, subject: str, url: str) -> EmailContent:
     return EmailContent(
-        subject=f"[Clickfield AI] New Reply — {number}",
+        subject=f"[ClickfieldAI] New Reply — {number}",
         html=_layout(
             f"Our team replied to your ticket {escape(number)}",
             [f"<strong>{escape(subject)}</strong>", "Open the ticket to read the reply."],
@@ -99,7 +136,7 @@ def team_reply(*, number: str, subject: str, url: str) -> EmailContent:
 
 def status_changed(*, number: str, status: str, url: str) -> EmailContent:
     return EmailContent(
-        subject=f"[Clickfield AI] Ticket {number} Updated",
+        subject=f"[ClickfieldAI] Ticket {number} Updated",
         html=_layout(
             f"Your ticket {escape(number)} has been updated.",
             [f"Status: <strong>{escape(_status_label(status))}</strong>"],
@@ -110,7 +147,7 @@ def status_changed(*, number: str, status: str, url: str) -> EmailContent:
 
 def ticket_resolved(*, number: str, url: str) -> EmailContent:
     return EmailContent(
-        subject=f"[Clickfield AI] Ticket {number} Resolved",
+        subject=f"[ClickfieldAI] Ticket {number} Resolved",
         html=_layout(
             f"Your ticket {escape(number)} has been marked as resolved.",
             ["Please review the ticket and confirm if the issue is fixed."],
@@ -121,6 +158,6 @@ def ticket_resolved(*, number: str, url: str) -> EmailContent:
 
 def ticket_closed(*, number: str, url: str) -> EmailContent:
     return EmailContent(
-        subject=f"[Clickfield AI] Ticket {number} Closed",
+        subject=f"[ClickfieldAI] Ticket {number} Closed",
         html=_layout(f"Ticket {escape(number)} has been closed.", [], url),
     )

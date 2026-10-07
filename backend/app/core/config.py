@@ -37,6 +37,18 @@ class Settings(BaseSettings):
     # Email
     resend_api_key: str = ""
     email_from_address: str = "support@clickfieldai.com"
+    # "noop" | "resend" | "smtp"; empty = auto (resend if key, smtp if host, else noop).
+    email_provider: str = ""
+
+    # SMTP (backend-only; never NEXT_PUBLIC_, never logged, never in email_logs).
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_username: str = ""
+    smtp_password: str = ""
+    smtp_from_email: str = ""
+    smtp_from_name: str = "ClickfieldAI Support"
+    smtp_use_tls: bool = True
+    smtp_use_ssl: bool = False
 
     # App
     app_url: str = "http://localhost:3000"

@@ -33,6 +33,9 @@ hosting platforms' secret stores.
 | `REDIS_URL` | yes | managed Redis (e.g. Upstash/Redis Cloud), `rediss://` if TLS |
 | `RESEND_API_KEY` | yes in prod | without it the worker uses the no-op provider (emails logged with provider `noop`, never sent) |
 | `EMAIL_FROM_ADDRESS` | yes | must be on a domain verified in Resend |
+| `EMAIL_PROVIDER` | no | `noop` \| `resend` \| `smtp`; empty = auto (Resend if key set, SMTP if `SMTP_HOST` set, else noop). See `docs/SMTP.md` |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USERNAME` / `SMTP_PASSWORD` | if using SMTP | backend + worker only, never `NEXT_PUBLIC_`; empty `SMTP_HOST` = noop |
+| `SMTP_FROM_EMAIL` / `SMTP_FROM_NAME` / `SMTP_USE_TLS` / `SMTP_USE_SSL` | if using SMTP | STARTTLS on 587 (`SMTP_USE_TLS=true`) or implicit TLS on 465 (`SMTP_USE_SSL=true`) |
 | `APP_URL` | yes | public frontend URL, used for "Open Ticket" links and password-reset redirect |
 | `CORS_ALLOW_ORIGINS` | yes | JSON list, e.g. `["https://support.clickfieldai.com"]` — never `*` |
 | `STORAGE_BUCKET` | no | default `ticket-attachments` |
@@ -165,7 +168,7 @@ docker run --env-file <secret env> clickfield-ticketing-api:<git-sha> python -m 
 ```
 
 It needs `DATABASE_URL`, `SUPABASE_*`, `REDIS_URL`, `RESEND_API_KEY`,
-`EMAIL_FROM_ADDRESS`, `APP_URL`. Monitor `email_logs` for `status = 'FAILED'`.
+`EMAIL_FROM_ADDRESS`, `APP_URL` (or `EMAIL_PROVIDER=smtp` + `SMTP_*`, see `docs/SMTP.md`). Monitor `email_logs` for `status = 'FAILED'`.
 Note: jobs enqueued while Redis is down are lost (the ticket change itself is
 always committed); re-sending is a manual action in V1.
 
