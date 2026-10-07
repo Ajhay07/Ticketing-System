@@ -209,3 +209,9 @@ export async function uploadAttachment(ticketId: string, file: File, commentId?:
     throw new Error("File upload failed");
   }
 }
+
+/** Open a private attachment through a short-lived signed URL issued by the API. */
+export async function openAttachment(ticketId: string, attachmentId: string): Promise<void> {
+  const { url } = await apiJson<{ url: string }>(`/api/tickets/${ticketId}/attachments/${attachmentId}/download`);
+  window.open(url, "_blank", "noopener,noreferrer");
+}

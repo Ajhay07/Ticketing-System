@@ -1,25 +1,23 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
   CheckCircle2,
   Download,
   FileText,
-  Lock,
-  MessageSquare,
-  MessagesSquare,
   Paperclip,
-  Send,
   UploadCloud,
 } from "lucide-react";
+import { TicketChat } from "@/components/tickets/TicketChat";
 import { TicketHistory, TriagePanel } from "@/components/tickets/TicketExtras";
+import { CHAT_REFETCH_MS } from "@/lib/chat";
+import type { Notification } from "@/lib/admin";
 import { DueDate, OverdueBadge, PriorityBadge, StatusBadge } from "@/components/tickets/Badges";
 import { Button } from "@/components/ui/Button";
 import { Card, CardHeader, Page } from "@/components/ui/Card";
-import { cn } from "@/components/ui/cn";
 import { Checkbox, ErrorText, Label, Select, Textarea } from "@/components/ui/Form";
 import { EmptyState, ErrorState, Skeleton, Spinner } from "@/components/ui/States";
 import {
@@ -32,6 +30,7 @@ import {
   isAdmin,
   isStaff,
   MAX_ATTACHMENT_BYTES,
+  openAttachment,
   statusLabel,
   statusTargets,
   uploadAttachment,
@@ -61,12 +60,16 @@ export function TicketDetail({ ticketId, backHref }: { ticketId: string; backHre
     queryKey: ["comments", ticketId],
     queryFn: () => apiJson<Comment[]>(`/api/tickets/${ticketId}/comments`),
     enabled: ticket.isSuccess,
+    // Chat freshness by polling while the page is open (no realtime; docs/CHAT.md).
+    refetchInterval: CHAT_REFETCH_MS,
   });
   const attachments = useQuery({
     queryKey: ["attachments", ticketId],
     queryFn: () => apiJson<Attachment[]>(`/api/tickets/${ticketId}/attachments`),
     enabled: ticket.isSuccess,
+    refetchInterval: CHAT_REFETCH_MS,
   });
+  useMarkTicketNotificationsRead(ticketId, ticket.isSuccess);
 
   function refresh() {
     for (const key of ["ticket", "comments", "attachments"]) {
@@ -127,9 +130,7 @@ export function TicketDetail({ ticketId, backHref }: { ticketId: string; backHre
     }
   }
 
-  const assigneeLabel = t.assigned_to ? (t.assigned_to_name ?? "Clickfield AI team") : "Unassigned";
-  // Defence in depth for rendering only: the API never returns INTERNAL comments to clients.
-  const visibleComments = (comments.data ?? []).filter((c) => staff || c.visibility !== "INTERNAL");
+  const assigneeLabel = t.assigned_to ? (t.assigned_to_name ?? "ClickfieldAI team") : "Unassigned";
 
   return (
     <Page>
@@ -182,32 +183,16 @@ export function TicketDetail({ ticketId, backHref }: { ticketId: string; backHre
             </div>
           </Card>
 
-          <section aria-labelledby="conversation-heading">
-            <h2 id="conversation-heading" className="mb-3 flex items-center gap-2 text-base font-semibold text-slate-900">
-              <MessagesSquare className="h-4 w-4 text-slate-400" />
-              Conversation
-              {visibleComments.length > 0 && (
-                <span className="text-sm font-normal text-slate-400 tabular">({visibleComments.length})</span>
-              )}
-            </h2>
-            {comments.isLoading && (
-              <div className="space-y-3">
-                <Skeleton className="h-20 w-full" />
-                <Skeleton className="h-20 w-full" />
-              </div>
-            )}
-            {comments.data && visibleComments.length === 0 && (
-              <Card>
-                <EmptyState compact icon={MessageSquare} title="No messages yet" description="Replies will appear here." />
-              </Card>
-            )}
-            <ol className="space-y-3">
-              {visibleComments.map((c) => (
-                <CommentItem key={c.id} comment={c} myUserId={me.data.user_id} />
-              ))}
-            </ol>
-            {t.status !== "CLOSED" && <ReplyBox ticketId={ticketId} staff={staff} onPosted={refresh} />}
-          </section>
+          <TicketChat
+            ticketId={ticketId}
+            comments={comments.data ?? []}
+            loading={comments.isLoading}
+            attachments={attachments.data ?? []}
+            myUserId={me.data.user_id}
+            staff={staff}
+            closed={t.status === "CLOSED"}
+            onPosted={refresh}
+          />
 
           <AttachmentsSection ticketId={ticketId} attachments={attachments.data ?? []} onUploaded={refresh} />
 
@@ -250,6 +235,28 @@ export function TicketDetail({ ticketId, backHref }: { ticketId: string; backHre
       </div>
     </Page>
   );
+}
+
+/**
+ * Opening a ticket marks the viewer's own unread notifications for it as read
+ * (existing /api/notifications endpoints; RLS limits this to the viewer's rows).
+ * Drives the unread dot on ticket lists. Best-effort: failures are ignored.
+ */
+function useMarkTicketNotificationsRead(ticketId: string, enabled: boolean) {
+  const queryClient = useQueryClient();
+  const unread = useQuery({
+    queryKey: ["notifications", "unread"],
+    queryFn: () => apiJson<{ items: Notification[]; unread: number }>("/api/notifications?unread_only=true&limit=100"),
+    enabled,
+  });
+  const ids = (unread.data?.items ?? []).filter((n) => n.ticket_id === ticketId && !n.read_at).map((n) => n.id);
+  const key = ids.join(",");
+  useEffect(() => {
+    if (!key) return;
+    void Promise.all(
+      key.split(",").map((id) => apiJson<null>(`/api/notifications/${id}/read`, { method: "POST" }).catch(() => null))
+    ).then(() => queryClient.invalidateQueries({ queryKey: ["notifications"] }));
+  }, [key, queryClient]);
 }
 
 function DetailSkeleton() {
@@ -428,161 +435,6 @@ function ActionsPanel({
   );
 }
 
-function CommentItem({ comment, myUserId }: { comment: Comment; myUserId: string }) {
-  const internal = comment.visibility === "INTERNAL";
-  const fromTeam = isStaff(comment.author_role ?? undefined);
-  const author = comment.user_id === myUserId ? "You" : (comment.author_name ?? "Clickfield AI team");
-
-  if (internal) {
-    return (
-      <li className="overflow-hidden rounded-lg border border-amber-300 bg-amber-50 shadow-xs">
-        <div className="flex items-center gap-2 border-b border-amber-200 bg-amber-100/70 px-4 py-2 text-xs font-semibold text-amber-900">
-          <Lock className="h-3.5 w-3.5" aria-hidden />
-          Internal Note
-          <span className="font-normal text-amber-800">&mdash; visible only to Clickfield AI team</span>
-        </div>
-        <div className="px-4 py-3">
-          <div className="flex flex-wrap items-baseline justify-between gap-2 text-xs">
-            <span className="font-semibold text-slate-800">{author}</span>
-            <time className="tabular text-slate-500">{formatDate(comment.created_at)}</time>
-          </div>
-          <p className="mt-1.5 whitespace-pre-wrap text-sm leading-relaxed text-slate-800">{comment.comment}</p>
-        </div>
-      </li>
-    );
-  }
-
-  return (
-    <li
-      className={cn(
-        "rounded-lg border bg-white px-4 py-3 shadow-xs",
-        fromTeam ? "border-l-[3px] border-slate-200 border-l-brand-500" : "border-slate-200"
-      )}
-    >
-      <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-        <span className="flex items-center gap-2">
-          <span
-            className={cn(
-              "flex h-6 w-6 items-center justify-center rounded-full text-2xs font-semibold",
-              fromTeam ? "bg-brand-50 text-brand-700" : "bg-slate-100 text-slate-600"
-            )}
-            aria-hidden
-          >
-            {author.slice(0, 1).toUpperCase()}
-          </span>
-          <span className="font-semibold text-slate-800">{author}</span>
-          <span
-            className={cn(
-              "rounded px-1.5 py-0.5 text-2xs font-medium uppercase tracking-wide",
-              fromTeam ? "bg-brand-50 text-brand-700" : "bg-slate-100 text-slate-600"
-            )}
-          >
-            {fromTeam ? "Clickfield AI" : "Client"}
-          </span>
-        </span>
-        <time className="tabular text-slate-500">{formatDate(comment.created_at)}</time>
-      </div>
-      <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-slate-800">{comment.comment}</p>
-    </li>
-  );
-}
-
-function ReplyBox({ ticketId, staff, onPosted }: { ticketId: string; staff: boolean; onPosted: () => void }) {
-  const [text, setText] = useState("");
-  const [visibility, setVisibility] = useState<"CLIENT" | "INTERNAL">("CLIENT");
-  const [error, setError] = useState<string | null>(null);
-  const internal = visibility === "INTERNAL";
-
-  const post = useMutation({
-    mutationFn: () =>
-      apiJson<Comment>(`/api/tickets/${ticketId}/comments`, {
-        method: "POST",
-        body: JSON.stringify({ comment: text, visibility }),
-      }),
-    onMutate: () => setError(null),
-    onSuccess: () => {
-      setText("");
-      onPosted();
-    },
-    onError: (e: Error) => setError(e.message),
-  });
-
-  return (
-    <form
-      className={cn(
-        "mt-4 overflow-hidden rounded-lg border bg-white shadow-sm transition-colors",
-        internal ? "border-amber-300" : "border-slate-200"
-      )}
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (text.trim()) post.mutate();
-      }}
-    >
-      {staff && (
-        <div role="radiogroup" aria-label="Message type" className="flex border-b border-slate-100 bg-slate-50/60 p-1">
-          {(
-            [
-              ["CLIENT", "Reply to client", Send],
-              ["INTERNAL", "Internal note", Lock],
-            ] as const
-          ).map(([value, label, Icon]) => {
-            const active = visibility === value;
-            return (
-              <label
-                key={value}
-                className={cn(
-                  "flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors focus-within:outline focus-within:outline-2 focus-within:outline-brand-500",
-                  active
-                    ? value === "INTERNAL"
-                      ? "bg-amber-100 text-amber-900"
-                      : "bg-white text-slate-900 shadow-xs"
-                    : "text-slate-500 hover:text-slate-800"
-                )}
-              >
-                <input
-                  type="radio"
-                  name="visibility"
-                  className="sr-only"
-                  checked={active}
-                  onChange={() => setVisibility(value)}
-                />
-                <Icon className="h-3.5 w-3.5" aria-hidden />
-                {label}
-              </label>
-            );
-          })}
-        </div>
-      )}
-      {internal && (
-        <p className="flex items-center gap-1.5 bg-amber-50 px-4 py-2 text-xs font-medium text-amber-900">
-          <Lock className="h-3.5 w-3.5" aria-hidden />
-          This note will be visible only to the Clickfield AI team, never to the client.
-        </p>
-      )}
-      <div className="p-3">
-        <textarea
-          aria-label="Message"
-          rows={4}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder={internal ? "Internal note (not visible to the client)" : "Write a reply"}
-          className={cn(
-            "block w-full resize-y rounded-md border-0 px-1 py-1 text-sm leading-relaxed text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-0",
-            internal ? "bg-amber-50/40" : "bg-white"
-          )}
-        />
-        {error && <ErrorText className="mt-2">{error}</ErrorText>}
-        <div className="mt-2 flex justify-end">
-          <Button type="submit" variant="primary" disabled={post.isPending || !text.trim()}>
-            {post.isPending ? <Spinner className="text-white/80" /> : internal ? <Lock className="h-4 w-4" /> : <Send className="h-4 w-4" />}
-            {internal ? "Add internal note" : "Send reply"}
-          </Button>
-        </div>
-      </div>
-    </form>
-  );
-}
-
 function AttachmentsSection({
   ticketId,
   attachments,
@@ -605,10 +457,7 @@ function AttachmentsSection({
   async function download(attachment: Attachment) {
     setError(null);
     try {
-      const { url } = await apiJson<{ url: string }>(
-        `/api/tickets/${ticketId}/attachments/${attachment.id}/download`
-      );
-      window.open(url, "_blank", "noopener,noreferrer");
+      await openAttachment(ticketId, attachment.id);
     } catch (e) {
       setError((e as Error).message);
     }

@@ -10,6 +10,8 @@ import { Page, PageHeader } from "@/components/ui/Card";
 import { Checkbox, Input, Select } from "@/components/ui/Form";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/States";
 import { Table, TableContainer, TBody, TD, TH, THead, TicketNumberLink, TR } from "@/components/ui/Table";
+import { unreadTicketIds } from "@/lib/chat";
+import type { Notification } from "@/lib/admin";
 import {
   apiJson,
   formatDate,
@@ -51,10 +53,19 @@ export function TicketList({ title, basePath, showCreate, showOrganization, empt
     placeholderData: keepPreviousData,
   });
 
+  // Unread dot: tickets with an unread in-app notification for this viewer
+  // (existing notifications API; cleared when the ticket is opened).
+  const unread = useQuery({
+    queryKey: ["notifications", "unread"],
+    queryFn: () => apiJson<{ items: Notification[]; unread: number }>("/api/notifications?unread_only=true&limit=100"),
+    refetchInterval: 60_000,
+  });
+  const unreadIds = unreadTicketIds(unread.data?.items ?? []);
+
   const totalPages = data ? Math.max(1, Math.ceil(data.total / data.page_size)) : 1;
   const filtered = Boolean(q || status || priority || overdue || unassigned);
   const assignee = (t: TicketPage["items"][number]) =>
-    t.assigned_to ? (t.assigned_to_name ?? "Clickfield AI team") : "Unassigned";
+    t.assigned_to ? (t.assigned_to_name ?? "ClickfieldAI team") : "Unassigned";
 
   return (
     <Page>
@@ -209,7 +220,10 @@ export function TicketList({ title, basePath, showCreate, showOrganization, empt
                 {data.items.map((t) => (
                   <TR key={t.id} href={`${basePath}/${t.id}`}>
                     <TD>
-                      <TicketNumberLink href={`${basePath}/${t.id}`}>{t.ticket_number}</TicketNumberLink>
+                      <span className="inline-flex items-center gap-1.5">
+                        <TicketNumberLink href={`${basePath}/${t.id}`}>{t.ticket_number}</TicketNumberLink>
+                        {unreadIds.has(t.id) && <UnreadDot />}
+                      </span>
                     </TD>
                     <TD className="max-w-[280px] truncate font-medium text-slate-900">
                       <Link href={`${basePath}/${t.id}`} className="rounded hover:text-brand-700">
@@ -246,7 +260,10 @@ export function TicketList({ title, basePath, showCreate, showOrganization, empt
               <li key={t.id}>
                 <Link href={`${basePath}/${t.id}`} className="block px-4 py-3 hover:bg-slate-50">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="font-mono text-xs font-medium text-slate-500">{t.ticket_number}</span>
+                    <span className="inline-flex items-center gap-1.5 font-mono text-xs font-medium text-slate-500">
+                      {t.ticket_number}
+                      {unreadIds.has(t.id) && <UnreadDot />}
+                    </span>
                     <span className="text-xs tabular text-slate-400">{formatDate(t.created_at)}</span>
                   </div>
                   <p className="mt-1 line-clamp-2 font-medium text-slate-900">{t.subject}</p>
@@ -321,5 +338,13 @@ export function TableSkeleton({ rows = 6 }: { rows?: number }) {
         ))}
       </div>
     </TableContainer>
+  );
+}
+
+function UnreadDot() {
+  return (
+    <span className="inline-flex h-2 w-2 shrink-0 rounded-full bg-brand-600" title="New activity">
+      <span className="sr-only">New activity</span>
+    </span>
   );
 }
