@@ -36,7 +36,7 @@ export function TicketHistory({ ticketId }: { ticketId: string }) {
           <span className="absolute bottom-6 left-[27px] top-6 w-px bg-slate-200" aria-hidden />
           {history.data.map((h) => (
             <li key={h.id} className="relative flex gap-3 py-1.5">
-              <span className="relative z-10 mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full border-2 border-white bg-slate-300 ring-1 ring-slate-200" aria-hidden />
+              <span className="relative z-10 mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full border-2 border-white bg-cf-black ring-1 ring-cf-border" aria-hidden />
               <div className="min-w-0 text-sm">
                 <p className="text-slate-800">
                   {describeAuditEntry(h)}

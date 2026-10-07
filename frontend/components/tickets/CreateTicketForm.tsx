@@ -155,7 +155,7 @@ export function CreateTicketForm() {
               Attachment
             </Label>
             {file ? (
-              <div className="flex items-center gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2.5">
+              <div className="flex items-center gap-3 rounded-md border border-cf-border bg-slate-50 px-3 py-2.5">
                 <FileText className="h-5 w-5 shrink-0 text-slate-400" />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium text-slate-800">{file.name}</p>
@@ -226,7 +226,7 @@ export function CreateTicketForm() {
             </p>
           )}
 
-          <div className="flex flex-col-reverse gap-2 border-t border-slate-100 pt-5 sm:flex-row sm:justify-end">
+          <div className="flex flex-col-reverse gap-2 border-t border-cf-border pt-5 sm:flex-row sm:justify-end">
             <ButtonLink href="/client/tickets">Cancel</ButtonLink>
             <Button type="submit" variant="primary" disabled={create.isPending || partial !== null}>
               {create.isPending && <Spinner className="text-white/80" />}

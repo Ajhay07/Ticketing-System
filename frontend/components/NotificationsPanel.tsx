@@ -11,7 +11,15 @@ import { apiJson, formatDate } from "@/lib/tickets";
 import type { Notification } from "@/lib/admin";
 
 /** In-app notifications (spec §26). Only the caller's own rows are returned (RLS). */
-export function NotificationsPanel({ ticketBasePath }: { ticketBasePath: string }) {
+export function NotificationsPanel({
+  ticketBasePath,
+  title = "Notifications",
+  className,
+}: {
+  ticketBasePath: string;
+  title?: string;
+  className?: string;
+}) {
   const queryClient = useQueryClient();
   const data = useQuery({
     queryKey: ["notifications"],
@@ -25,14 +33,14 @@ export function NotificationsPanel({ ticketBasePath }: { ticketBasePath: string 
   const items = data.data?.items ?? [];
   const unread = data.data?.unread ?? 0;
   return (
-    <Card className="mt-8">
+    <Card className={cn("mt-10", className)}>
       <CardHeader
         icon={<Bell className="h-4 w-4" />}
         title={
           <span className="flex items-center gap-2">
-            Notifications
+            {title}
             {unread > 0 && (
-              <span className="rounded-full bg-red-600 px-1.5 py-0.5 text-2xs font-semibold leading-none text-white tabular">
+              <span className="bg-cf-red px-1.5 py-0.5 text-[10px] font-bold leading-none tracking-normal text-white tabular">
                 {unread}
               </span>
             )}
@@ -51,19 +59,23 @@ export function NotificationsPanel({ ticketBasePath }: { ticketBasePath: string 
         <EmptyState compact icon={BellOff} title="No notifications" description="You're all caught up." />
       )}
       {items.length > 0 && (
-        <ul className="divide-y divide-slate-100">
+        <ol className="relative px-5 py-4">
+          <span className="absolute bottom-6 left-[25px] top-6 w-px bg-cf-border" aria-hidden />
           {items.map((n) => (
-            <li key={n.id} className="flex items-start gap-3 px-5 py-3">
+            <li key={n.id} className="relative flex items-start gap-4 py-3">
               <span
-                className={cn("mt-1.5 h-2 w-2 shrink-0 rounded-full", n.read_at ? "bg-transparent" : "bg-brand-600")}
+                className={cn(
+                  "relative z-10 mt-1 h-2.5 w-2.5 shrink-0 rounded-full border-2",
+                  n.read_at ? "border-cf-border-strong bg-white" : "border-cf-black bg-cf-black"
+                )}
                 aria-hidden
               />
               <div className="min-w-0 flex-1">
-                <p className={cn("text-sm", n.read_at ? "text-slate-500" : "font-medium text-slate-900")}>
+                <p className={cn("text-sm", n.read_at ? "text-cf-slate" : "font-semibold text-cf-ink")}>
                   {n.ticket_id ? (
                     <Link
                       href={`${ticketBasePath}/${n.ticket_id}`}
-                      className="rounded hover:text-brand-700 hover:underline"
+                      className="rounded-sm underline-offset-4 hover:underline"
                       onClick={() => {
                         if (!n.read_at) markRead.mutate(`/api/notifications/${n.id}/read`);
                       }}
@@ -74,11 +86,11 @@ export function NotificationsPanel({ ticketBasePath }: { ticketBasePath: string 
                     n.title
                   )}
                 </p>
-                <p className="mt-0.5 text-xs text-slate-400">{formatDate(n.created_at)}</p>
+                <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-cf-muted tabular">{formatDate(n.created_at)}</p>
               </div>
             </li>
           ))}
-        </ul>
+        </ol>
       )}
     </Card>
   );

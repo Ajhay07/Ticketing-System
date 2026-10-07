@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight, Plus, Search, SearchX, Ticket as TicketIcon } from "lucide-react";
 import { DueDate, OverdueBadge, PriorityBadge, StatusBadge } from "@/components/tickets/Badges";
@@ -35,13 +36,29 @@ type Props = {
 };
 
 /** Ticket list. Which rows appear is decided entirely by the API + RLS. */
-export function TicketList({ title, basePath, showCreate, showOrganization, emptyMessage, adminFilters }: Props) {
+export function TicketList(props: Props) {
+  // useSearchParams needs a Suspense boundary for static prerendering.
+  return (
+    <Suspense fallback={null}>
+      <TicketListInner {...props} />
+    </Suspense>
+  );
+}
+
+function TicketListInner({ title, basePath, showCreate, showOrganization, emptyMessage, adminFilters }: Props) {
+  // ?q= lets the top-bar search hand off to this list's existing search.
+  const urlQ = useSearchParams().get("q") ?? "";
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<number>(25);
   const [status, setStatus] = useState("");
   const [priority, setPriority] = useState("");
-  const [search, setSearch] = useState("");
-  const [q, setQ] = useState("");
+  const [search, setSearch] = useState(urlQ);
+  const [q, setQ] = useState(urlQ);
+  useEffect(() => {
+    setSearch(urlQ);
+    setQ(urlQ);
+    setPage(1);
+  }, [urlQ]);
   const [sort, setSort] = useState("default");
   const [overdue, setOverdue] = useState(false);
   const [unassigned, setUnassigned] = useState(false);
@@ -82,7 +99,7 @@ export function TicketList({ title, basePath, showCreate, showOrganization, empt
         }
       />
 
-      <div className="mb-4 flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-3 shadow-xs lg:flex-row lg:items-center">
+      <div className="mb-6 flex flex-col gap-3 border-y border-cf-border py-4 lg:flex-row lg:items-center">
         <form
           className="relative flex-1 lg:max-w-sm"
           role="search"
@@ -92,7 +109,7 @@ export function TicketList({ title, basePath, showCreate, showOrganization, empt
             setPage(1);
           }}
         >
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-cf-muted" />
           <Input
             type="search"
             aria-label="Search tickets"
@@ -225,8 +242,8 @@ export function TicketList({ title, basePath, showCreate, showOrganization, empt
                         {unreadIds.has(t.id) && <UnreadDot />}
                       </span>
                     </TD>
-                    <TD className="max-w-[280px] truncate font-medium text-slate-900">
-                      <Link href={`${basePath}/${t.id}`} className="rounded hover:text-brand-700">
+                    <TD className="max-w-[320px] truncate font-semibold text-cf-ink">
+                      <Link href={`${basePath}/${t.id}`} className="rounded-sm underline-offset-4 hover:underline">
                         {t.subject}
                       </Link>
                     </TD>
@@ -255,18 +272,18 @@ export function TicketList({ title, basePath, showCreate, showOrganization, empt
           </TableContainer>
 
           {/* Mobile: stacked rows */}
-          <ul className="divide-y divide-slate-100 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm md:hidden">
+          <ul className="divide-y divide-cf-border overflow-hidden rounded border border-cf-border bg-white md:hidden">
             {data.items.map((t) => (
               <li key={t.id}>
-                <Link href={`${basePath}/${t.id}`} className="block px-4 py-3 hover:bg-slate-50">
+                <Link href={`${basePath}/${t.id}`} className="block px-4 py-4 transition-colors duration-150 hover:bg-cf-soft">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="inline-flex items-center gap-1.5 font-mono text-xs font-medium text-slate-500">
+                    <span className="inline-flex items-center gap-1.5 font-mono text-xs font-semibold text-cf-ink">
                       {t.ticket_number}
                       {unreadIds.has(t.id) && <UnreadDot />}
                     </span>
                     <span className="text-xs tabular text-slate-400">{formatDate(t.created_at)}</span>
                   </div>
-                  <p className="mt-1 line-clamp-2 font-medium text-slate-900">{t.subject}</p>
+                  <p className="mt-1.5 line-clamp-2 font-semibold tracking-[-0.01em] text-cf-ink">{t.subject}</p>
                   {showOrganization && <p className="mt-0.5 text-xs text-slate-500">{t.organization_name}</p>}
                   <div className="mt-2 flex flex-wrap items-center gap-1.5">
                     <PriorityBadge priority={t.priority} />
@@ -281,7 +298,7 @@ export function TicketList({ title, basePath, showCreate, showOrganization, empt
       )}
 
       {data && data.total > 0 && (
-        <div className="mt-4 flex flex-col-reverse items-center justify-between gap-3 text-sm text-slate-600 sm:flex-row">
+        <div className="mt-6 flex flex-col-reverse items-center justify-between gap-3 border-t border-cf-border pt-4 text-[13px] text-cf-slate sm:flex-row">
           <span className="tabular">
             {data.total} ticket{data.total === 1 ? "" : "s"}
           </span>
@@ -301,7 +318,7 @@ export function TicketList({ title, basePath, showCreate, showOrganization, empt
                 </option>
               ))}
             </Select>
-            <Button disabled={page <= 1} onClick={() => setPage((p) => p - 1)} aria-label="Previous page" className="w-9 px-0">
+            <Button disabled={page <= 1} onClick={() => setPage((p) => p - 1)} aria-label="Previous page" className="w-10 px-0">
               <ChevronLeft className="h-4 w-4" />
             </Button>
             <span className="whitespace-nowrap tabular">
@@ -311,7 +328,7 @@ export function TicketList({ title, basePath, showCreate, showOrganization, empt
               disabled={page >= totalPages}
               onClick={() => setPage((p) => p + 1)}
               aria-label="Next page"
-              className="w-9 px-0"
+              className="w-10 px-0"
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
@@ -325,14 +342,14 @@ export function TicketList({ title, basePath, showCreate, showOrganization, empt
 export function TableSkeleton({ rows = 6 }: { rows?: number }) {
   return (
     <TableContainer>
-      <div role="status" aria-label="Loading" className="divide-y divide-slate-100">
-        <div className="h-10 bg-slate-50/80" />
+      <div role="status" aria-label="Loading" className="divide-y divide-cf-border">
+        <div className="h-11 border-b border-cf-ink" />
         {Array.from({ length: rows }).map((_, i) => (
           <div key={i} className="flex items-center gap-6 px-4 py-3.5">
             <Skeleton className="h-3 w-20" />
             <Skeleton className="h-3 flex-1" />
-            <Skeleton className="hidden h-5 w-16 rounded-full sm:block" />
-            <Skeleton className="hidden h-5 w-20 rounded-full sm:block" />
+            <Skeleton className="hidden h-5 w-16 rounded-sm sm:block" />
+            <Skeleton className="hidden h-5 w-20 rounded-sm sm:block" />
             <Skeleton className="hidden h-3 w-24 md:block" />
           </div>
         ))}
@@ -343,7 +360,7 @@ export function TableSkeleton({ rows = 6 }: { rows?: number }) {
 
 function UnreadDot() {
   return (
-    <span className="inline-flex h-2 w-2 shrink-0 rounded-full bg-brand-600" title="New activity">
+    <span className="inline-flex h-2 w-2 shrink-0 rounded-full bg-cf-blue" title="New activity">
       <span className="sr-only">New activity</span>
     </span>
   );

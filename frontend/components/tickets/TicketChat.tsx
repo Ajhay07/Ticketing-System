@@ -53,13 +53,13 @@ export function TicketChat({
 
   return (
     <section aria-labelledby="conversation-heading">
-      <h2 id="conversation-heading" className="mb-3 flex items-center gap-2 text-base font-semibold text-slate-900">
+      <h2 id="conversation-heading" className="cf-section mb-4 flex items-center gap-2">
         <MessagesSquare className="h-4 w-4 text-slate-400" />
         Conversation
         {visible.length > 0 && <span className="text-sm font-normal text-slate-400 tabular">({visible.length})</span>}
       </h2>
       {/* No overflow clipping here: the composer is position:sticky. */}
-      <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
+      <div className="rounded-lg border border-cf-border bg-white shadow-sm">
         <div className="px-3 py-4 sm:px-5">
           {loading && (
             <div className="space-y-4" role="status" aria-label="Loading messages">
@@ -90,7 +90,7 @@ export function TicketChat({
           </ol>
         </div>
         {closed ? (
-          <p className="border-t border-slate-100 px-5 py-3 text-center text-xs text-slate-500">
+          <p className="border-t border-cf-border px-5 py-3 text-center text-xs text-slate-500">
             This ticket is closed. Reopen it to send a new message.
           </p>
         ) : (
@@ -102,18 +102,18 @@ export function TicketChat({
 }
 
 const BUBBLE: Record<MessageKind, string> = {
-  client: "bg-slate-100 text-slate-900",
-  staff: "bg-brand-600 text-white",
+  client: "border border-cf-border bg-cf-soft text-cf-ink",
+  staff: "bg-cf-black text-white",
   internal: "border border-dashed border-amber-300 bg-amber-50 text-slate-900",
 };
 const AVATAR: Record<MessageKind, string> = {
   client: "bg-slate-200 text-slate-700",
-  staff: "bg-brand-100 text-brand-700",
+  staff: "bg-cf-black text-white",
   internal: "bg-amber-100 text-amber-800",
 };
 const TAG: Record<MessageKind, [string, string]> = {
   client: ["Client", "bg-slate-100 text-slate-600"],
-  staff: ["ClickfieldAI", "bg-brand-50 text-brand-700"],
+  staff: ["ClickfieldAI", "bg-cf-black text-white"],
   internal: ["Internal note", "bg-amber-100 text-amber-900"],
 };
 
@@ -137,7 +137,7 @@ function ChatMessage({
     <li className={cn("flex items-end gap-2", mine && "flex-row-reverse")} data-kind={kind}>
       <span
         className={cn(
-          "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-2xs font-semibold",
+          "flex h-8 w-8 shrink-0 items-center justify-center rounded text-2xs font-bold",
           AVATAR[kind]
         )}
         aria-hidden
@@ -149,7 +149,7 @@ function ChatMessage({
           <span className="font-semibold text-slate-800">{mine ? "You" : name}</span>
           <span className={cn("rounded px-1.5 py-0.5 text-2xs font-medium uppercase tracking-wide", tagClass)}>{tag}</span>
         </div>
-        <div className={cn("max-w-full rounded-2xl px-3.5 py-2.5", mine ? "rounded-br-sm" : "rounded-bl-sm", BUBBLE[kind])}>
+        <div className={cn("max-w-full rounded-md px-3.5 py-2.5", mine ? "rounded-br-none" : "rounded-bl-none", BUBBLE[kind])}>
           {kind === "internal" && (
             <p className="mb-1 flex items-center gap-1 text-2xs font-semibold uppercase tracking-wide text-amber-800">
               <Lock className="h-3 w-3" aria-hidden /> Visible only to the ClickfieldAI team
@@ -168,7 +168,7 @@ function ChatMessage({
                     }}
                     className={cn(
                       "flex max-w-full items-center gap-1.5 rounded-md px-2 py-1 text-left text-xs font-medium underline-offset-2 hover:underline",
-                      kind === "staff" ? "bg-white/15 text-white" : "bg-white text-slate-700 ring-1 ring-slate-200"
+                      kind === "staff" ? "bg-white/15 text-white" : "bg-white text-slate-700 ring-1 ring-cf-border"
                     )}
                     aria-label={`Download ${f.file_name}`}
                   >
@@ -240,7 +240,7 @@ function Composer({ ticketId, staff, onPosted }: { ticketId: string; staff: bool
     <form
       className={cn(
         "sticky bottom-0 z-10 rounded-b-lg border-t bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur",
-        internal ? "border-amber-300" : "border-slate-200"
+        internal ? "border-amber-300" : "border-cf-border"
       )}
       onSubmit={(e) => {
         e.preventDefault();
@@ -260,11 +260,11 @@ function Composer({ ticketId, staff, onPosted }: { ticketId: string; staff: bool
               <label
                 key={value}
                 className={cn(
-                  "flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium transition-colors focus-within:outline focus-within:outline-2 focus-within:outline-brand-500 sm:text-sm",
+                  "flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded px-2 py-1.5 text-xs font-semibold transition-colors duration-150 focus-within:outline focus-within:outline-2 focus-within:outline-cf-ink sm:text-sm",
                   active
                     ? value === "INTERNAL"
                       ? "bg-amber-100 text-amber-900"
-                      : "bg-brand-50 text-brand-700"
+                      : "bg-cf-black text-white"
                     : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
                 )}
               >
@@ -354,8 +354,8 @@ function Composer({ ticketId, staff, onPosted }: { ticketId: string; staff: bool
           }}
           placeholder={internal ? "Write an internal note" : staff ? "Reply to the client" : "Write a message"}
           className={cn(
-            "block min-h-[40px] min-w-0 flex-1 resize-none rounded-lg border px-3 py-2 text-base leading-snug text-slate-900 placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 sm:text-sm",
-            internal ? "border-amber-200 bg-amber-50/40" : "border-slate-200 bg-white"
+            "block min-h-[40px] min-w-0 flex-1 resize-none rounded border px-3 py-2 text-base leading-snug text-cf-ink placeholder:text-cf-muted focus:border-cf-ink focus:outline-none focus:ring-1 focus:ring-cf-ink sm:text-sm",
+            internal ? "border-amber-200 bg-amber-50/40" : "border-cf-border bg-white"
           )}
         />
         <Button

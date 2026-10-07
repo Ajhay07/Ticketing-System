@@ -92,7 +92,7 @@ export function TicketDetail({ ticketId, backHref }: { ticketId: string; backHre
   const back = (
     <Link
       href={backHref}
-      className="mb-4 inline-flex items-center gap-1.5 rounded text-sm font-medium text-slate-500 hover:text-slate-900"
+      className="mb-6 inline-flex items-center gap-1.5 rounded-sm text-[11px] font-bold uppercase tracking-[0.1em] text-cf-slate hover:text-cf-ink"
     >
       <ArrowLeft className="h-4 w-4" />
       Back to tickets
@@ -141,16 +141,16 @@ export function TicketDetail({ ticketId, backHref }: { ticketId: string; backHre
         <div className="min-w-0 space-y-6">
           <Card>
             <div className="p-5 sm:p-6">
-              <p className="font-mono text-xs font-medium text-slate-500">{t.ticket_number}</p>
-              <h1 className="mt-1 text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">{t.subject}</h1>
+              <p className="font-mono text-xs font-semibold text-cf-ink">{t.ticket_number}</p>
+              <h1 className="mt-2 text-2xl font-extrabold leading-tight tracking-[-0.03em] text-cf-black sm:text-[34px]">{t.subject}</h1>
               <div className="mt-3 flex flex-wrap gap-2">
                 <StatusBadge status={t.status} />
                 <PriorityBadge priority={t.priority} />
                 {t.is_overdue && <OverdueBadge />}
               </div>
             </div>
-            <div className="border-t border-slate-100 px-5 py-5 sm:px-6">
-              <p className="mb-2 text-2xs font-semibold uppercase tracking-wider text-slate-400">Description</p>
+            <div className="border-t border-cf-border px-5 py-5 sm:px-6">
+              <p className="mb-2 cf-label">Description</p>
               <p className="whitespace-pre-wrap leading-relaxed text-slate-800">{t.description}</p>
 
               {t.resolution_summary && (
@@ -203,7 +203,7 @@ export function TicketDetail({ ticketId, backHref }: { ticketId: string; backHre
         <aside className="space-y-6 lg:sticky lg:top-6 lg:self-start">
           <Card>
             <CardHeader title="Details" />
-            <dl className="divide-y divide-slate-100 text-sm">
+            <dl className="divide-y divide-cf-border text-sm">
               <Field label="Status" value={<StatusBadge status={t.status} />} />
               <Field label="Priority" value={<PriorityBadge priority={t.priority} />} />
               {staff && <Field label="Client" value={t.organization_name ?? "-"} />}
@@ -327,10 +327,10 @@ function ActionsPanel({
   return (
     <Card>
       <CardHeader title="Actions" />
-      <div className="divide-y divide-slate-100">
+      <div className="divide-y divide-cf-border">
         {targets.length > 0 && (
           <div className="px-5 py-4">
-            <p className="mb-2 text-xs font-medium text-slate-500">Change status</p>
+            <p className="cf-label mb-3">Change status</p>
             <div className="flex flex-wrap gap-2">
               {targets.map((to) => (
                 <Button key={to} size="sm" disabled={busy} onClick={() => onAction("/status", "PATCH", { status: to })}>
@@ -478,7 +478,7 @@ function AttachmentsSection({
       {attachments.length === 0 ? (
         <EmptyState compact icon={Paperclip} title="No attachments" description="PNG, JPG, PDF, DOC/DOCX, XLS/XLSX, CSV, ZIP - up to 25 MB." />
       ) : (
-        <ul className="divide-y divide-slate-100">
+        <ul className="divide-y divide-cf-border">
           {attachments.map((a) => (
             <li key={a.id} className="flex items-center gap-3 px-5 py-3">
               <FileText className="h-5 w-5 shrink-0 text-slate-400" aria-hidden />
