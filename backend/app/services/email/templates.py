@@ -43,6 +43,16 @@ _MUTED = "#64748b"
 _FONT = "Arial,Helvetica,sans-serif"
 
 
+LOGO_PATH = "/branding/clickfieldai-logo-email.png"
+
+
+def logo_url() -> str:
+    """Absolute URL of the official logo, served by the deployed frontend.
+    Email clients cannot load relative/localhost URLs; with a dev APP_URL the
+    image simply fails and degrades to its alt text."""
+    return f"{settings.app_url.rstrip('/')}{LOGO_PATH}"
+
+
 def _layout(heading: str, lines: list[str], url: str) -> str:
     """Branded, table-based, inline-styled layout (no external CSS/fonts) so it
     renders consistently across email clients, including on mobile."""
@@ -60,11 +70,9 @@ def _layout(heading: str, lines: list[str], url: str) -> str:
         'style="max-width:560px;background:#ffffff;border-radius:8px;border:1px solid #e2e8f0">'
         # Header
         f'<tr><td style="padding:18px 24px;border-bottom:3px solid {_BRAND}">'
-        '<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>'
-        f'<td style="background:{_BRAND};color:#ffffff;font-family:{_FONT};font-weight:bold;'
-        'font-size:14px;width:28px;height:28px;text-align:center;border-radius:6px">C</td>'
-        f'<td style="padding-left:10px;font-family:{_FONT};font-size:17px;font-weight:bold;color:{_INK}">'
-        f'Clickfield<span style="color:{_BRAND}">AI</span></td></tr></table></td></tr>'
+        f'<img src="{escape(logo_url(), quote=True)}" alt="{BRAND_NAME}" width="160" height="24" '
+        f'style="display:block;border:0;outline:none;width:160px;height:auto;font-family:{_FONT};'
+        f'font-size:17px;font-weight:bold;color:{_INK}"></td></tr>'
         # Body
         f'<tr><td style="padding:24px">'
         f'<h1 style="margin:0 0 16px;font-family:{_FONT};font-size:18px;line-height:1.3;color:{_INK}">'
@@ -80,7 +88,7 @@ def _layout(heading: str, lines: list[str], url: str) -> str:
         # Footer
         f'<tr><td style="padding:16px 24px;border-top:1px solid #e2e8f0;font-family:{_FONT};font-size:12px;'
         f'color:{_MUTED}">{BRAND_NAME} Support &middot; This is an automated message from the '
-        f"{BRAND_NAME} Ticketing System.</td></tr>"
+        f"{BRAND_NAME} Support Portal.</td></tr>"
         "</table></td></tr></table></body></html>"
     )
 

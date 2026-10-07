@@ -164,3 +164,10 @@ def test_templates_are_branded_and_table_based() -> None:
     assert c.subject.startswith("[ClickfieldAI]")
     assert "Clickfield AI" not in c.html and "ClickfieldAI Support" in c.html
     assert 'role="presentation"' in c.html and "<link" not in c.html and "<style" not in c.html
+
+
+def test_template_header_uses_official_logo_absolute_url(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(templates.settings, "app_url", "https://portal.example.com/")
+    c = templates.ticket_closed(number="CF-1", url="https://x")
+    assert '<img src="https://portal.example.com/branding/clickfieldai-logo-email.png"' in c.html
+    assert 'alt="ClickfieldAI"' in c.html

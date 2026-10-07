@@ -40,7 +40,7 @@ from app.core.logging import configure_logging
 configure_logging()
 logger = logging.getLogger("app.request")
 
-app = FastAPI(title="ClickfieldAI Ticketing System API", version="1.0.0")
+app = FastAPI(title="ClickfieldAI Support API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
