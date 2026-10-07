@@ -6,8 +6,9 @@ import { Providers } from "./providers";
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
 
 export const metadata: Metadata = {
-  title: "Clickfield AI Ticketing",
-  description: "Clickfield AI client ticketing and support platform",
+  title: { default: "ClickfieldAI Ticketing System", template: "%s · ClickfieldAI" },
+  description: "ClickfieldAI Ticketing System",
+  applicationName: "ClickfieldAI Ticketing System",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

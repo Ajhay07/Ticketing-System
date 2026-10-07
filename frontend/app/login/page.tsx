@@ -36,7 +36,7 @@ export default function LoginPage() {
   }
 
   return (
-    <AuthCard title="Sign in to Clickfield AI" subtitle="Welcome back. Sign in to the support portal.">
+    <AuthCard title="Sign in to ClickfieldAI" subtitle="Welcome back. Sign in to the support portal.">
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <Label htmlFor="email">Email</Label>

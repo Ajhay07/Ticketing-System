@@ -40,7 +40,7 @@ export function TicketHistory({ ticketId }: { ticketId: string }) {
               <div className="min-w-0 text-sm">
                 <p className="text-slate-800">
                   {describeAuditEntry(h)}
-                  <span className="text-slate-500"> by {h.actor_name ?? "Clickfield AI team"}</span>
+                  <span className="text-slate-500"> by {h.actor_name ?? "ClickfieldAI team"}</span>
                 </p>
                 <p className="text-xs tabular text-slate-400">{formatDate(h.created_at)}</p>
               </div>

@@ -17,6 +17,7 @@ import {
 import { cn } from "@/components/ui/cn";
 import { buttonClasses } from "@/components/ui/Button";
 import { LogoutButton, SidebarUser } from "@/components/shell/UserMenu";
+import { ClickfieldLogo } from "@/components/ClickfieldLogo";
 
 type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
 
@@ -51,35 +52,6 @@ const NAV: Record<"admin" | "team" | "client", { label: string; items: NavItem[]
     ],
   },
 };
-
-export function LogoMark({ className }: { className?: string }) {
-  return (
-    <span
-      className={cn(
-        "flex h-8 w-8 items-center justify-center rounded-md bg-brand-600 text-white shadow-sm",
-        className
-      )}
-      aria-hidden
-    >
-      <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth={2.5}>
-        <path d="M17 7.5a6 6 0 1 0 0 9" strokeLinecap="round" />
-        <circle cx="17.5" cy="12" r="1.6" fill="currentColor" stroke="none" />
-      </svg>
-    </span>
-  );
-}
-
-export function Wordmark({ sub }: { sub?: string }) {
-  return (
-    <span className="flex items-center gap-2.5">
-      <LogoMark />
-      <span className="leading-tight">
-        <span className="block text-sm font-semibold tracking-tight text-slate-900">Clickfield AI</span>
-        {sub && <span className="block text-2xs font-medium uppercase tracking-wider text-slate-400">{sub}</span>}
-      </span>
-    </span>
-  );
-}
 
 function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
@@ -128,7 +100,7 @@ export function SidebarShell({ area, children }: { area: "admin" | "team"; child
     <>
       <div className="flex h-16 items-center px-5">
         <Link href={nav.items[0]?.href ?? "/"} className="rounded-md">
-          <Wordmark sub={nav.label === "Admin" ? "Admin console" : "Team workspace"} />
+          <ClickfieldLogo sub={nav.label === "Admin" ? "Admin console" : "Team workspace"} />
         </Link>
       </div>
       <div className="flex-1 overflow-y-auto px-3 pb-2 pt-3">
@@ -148,7 +120,7 @@ export function SidebarShell({ area, children }: { area: "admin" | "team"; child
 
       {/* Mobile top bar */}
       <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-slate-200 bg-white/95 px-4 backdrop-blur lg:hidden">
-        <Wordmark />
+        <ClickfieldLogo size="sm" />
         <button
           type="button"
           onClick={() => setOpen(true)}
@@ -193,7 +165,7 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
         <div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-4 px-4 sm:h-16 sm:px-6 lg:px-8">
           <div className="flex min-w-0 items-center gap-6">
             <Link href="/client/dashboard" className="rounded-md">
-              <Wordmark sub="Support portal" />
+              <ClickfieldLogo sub="Support portal" />
             </Link>
             <nav aria-label="Main" className="hidden items-center gap-1 sm:flex">
               {items.map(({ href, label }) => {
