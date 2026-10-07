@@ -8,7 +8,7 @@ export default function ClientTicketsPage() {
       title="My Tickets"
       basePath="/client/tickets"
       showCreate
-      emptyMessage="You have not created any tickets yet."
+      emptyMessage="You have not created any tickets yet. Create one and the ClickfieldAI team will help."
     />
   );
 }

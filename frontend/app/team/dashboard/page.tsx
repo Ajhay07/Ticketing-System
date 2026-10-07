@@ -12,7 +12,7 @@ export default function TeamDashboardPage() {
     <Page>
       <PageHeader
         title="Team Dashboard"
-        description="Your assigned work at a glance."
+        description="ClickfieldAI Team: your assigned work at a glance."
         actions={
           <ButtonLink href="/team/tickets" variant="primary">
             My Assigned Tickets

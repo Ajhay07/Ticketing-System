@@ -51,7 +51,7 @@ export default function AdminDashboardPage() {
 
   return (
     <Page>
-      <PageHeader title="CTO Dashboard" description="What needs your attention right now." />
+      <PageHeader title="CTO Dashboard" description="ClickfieldAI Operations: what needs your attention right now." />
       {isLoading && <LoadingState label="Loading dashboard..." />}
       {error && <ErrorText>{(error as Error).message}</ErrorText>}
       {data && (

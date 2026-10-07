@@ -12,7 +12,7 @@ export default function ClientDashboardPage() {
     <Page>
       <PageHeader
         title="My Tickets"
-        description="Track the status of your support requests."
+        description="Welcome to ClickfieldAI Support. Track the status of your requests here."
         actions={
           <>
             <ButtonLink href="/client/tickets">All my tickets</ButtonLink>
