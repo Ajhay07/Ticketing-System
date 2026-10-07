@@ -36,7 +36,7 @@ export default function ForgotPasswordPage() {
     >
       {sent ? (
         <div className="flex flex-col items-center py-2 text-center">
-          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+          <span className="flex h-11 w-11 items-center justify-center rounded border border-emerald-200 text-emerald-600">
             <MailCheck className="h-5 w-5" />
           </span>
           <p className="mt-3 text-sm text-slate-600">

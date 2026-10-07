@@ -50,7 +50,7 @@ export default function ReportsPage() {
             {(["day", "week", "month"] as const).map((unit) => (
               <Card key={unit}>
                 <CardHeader title={`Per ${unit}`} />
-                <ul className="max-h-60 divide-y divide-slate-100 overflow-y-auto text-sm">
+                <ul className="max-h-60 divide-y divide-cf-border overflow-y-auto text-sm">
                   {data.volume[unit].map((v) => (
                     <li key={v.period} className="flex justify-between px-5 py-2">
                       <span className="tabular text-slate-600">{new Date(v.period).toLocaleDateString()}</span>

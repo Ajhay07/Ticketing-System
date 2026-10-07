@@ -234,7 +234,7 @@ function AddUserForm({ organizationId, onAdded }: { organizationId: string; onAd
   });
   return (
     <form
-      className="border-t border-slate-100 bg-slate-50/60 px-5 py-4"
+      className="border-t border-cf-border bg-slate-50/60 px-5 py-4"
       onSubmit={(e) => {
         e.preventDefault();
         add.mutate();

@@ -2,18 +2,18 @@
 
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, ArrowRight, CheckCircle2, CircleDot, Clock, Flame, Hourglass, Inbox } from "lucide-react";
+import { AlertTriangle, ArrowRight, CheckCircle2, CircleDot, Clock, Hourglass, Inbox } from "lucide-react";
+import { AdminHero, DashboardGreeting, PriorityQueue, TicketTrends } from "@/components/dashboard/Editorial";
 import { NotificationsPanel } from "@/components/NotificationsPanel";
 import { DueDate, PriorityBadge, StatusBadge } from "@/components/tickets/Badges";
 import { ButtonLink } from "@/components/ui/Button";
-import { Page, PageHeader, SectionTitle } from "@/components/ui/Card";
-import { cn } from "@/components/ui/cn";
+import { Page, SectionTitle } from "@/components/ui/Card";
 import { StatCard } from "@/components/ui/StatCard";
 import { EmptyState, LoadingState } from "@/components/ui/States";
 import { Table, TableContainer, TBody, TD, TH, THead, TicketNumberLink, TR } from "@/components/ui/Table";
 import { ErrorText } from "@/components/ui/Form";
 import type { DashboardData } from "@/lib/admin";
-import { apiJson, formatDate, statusLabel, type Priority } from "@/lib/tickets";
+import { apiJson, formatDate } from "@/lib/tickets";
 
 type Tone = "brand" | "warning" | "success" | "violet" | "neutral" | "danger";
 
@@ -27,19 +27,12 @@ const METRICS: {
   { key: "open", label: "Open", href: "/admin/tickets", icon: CircleDot, tone: "brand" },
   { key: "in_progress", label: "In Progress", href: "/admin/tickets", icon: Clock, tone: "brand" },
   { key: "waiting_for_client", label: "Waiting Client", href: "/admin/tickets", icon: Hourglass, tone: "warning" },
-  { key: "overdue", label: "Overdue", href: "/admin/tickets", icon: AlertTriangle, tone: "neutral" },
+  { key: "overdue", label: "Overdue", href: "/admin/tickets", icon: AlertTriangle, tone: "danger" },
   { key: "resolved_today", label: "Resolved Today", href: "/admin/tickets", icon: CheckCircle2, tone: "success" },
   { key: "unassigned", label: "Unassigned", href: "/admin/unassigned", icon: Inbox, tone: "violet" },
 ];
 
 const COLUMNS = ["Ticket", "Client", "Subject", "Category", "Priority", "Assigned To", "Status", "Created", "Due", "Last Updated"];
-
-const QUEUE_STYLES: Record<Priority, { card: string; count: string; bar: string }> = {
-  LOW: { card: "border-slate-200 bg-white", count: "text-slate-900", bar: "bg-slate-300" },
-  MEDIUM: { card: "border-slate-200 bg-white", count: "text-slate-900", bar: "bg-blue-500" },
-  HIGH: { card: "border-orange-200 bg-white", count: "text-orange-700", bar: "bg-orange-500" },
-  CRITICAL: { card: "border-red-300 bg-red-50/60 ring-1 ring-red-200", count: "text-red-700", bar: "bg-red-600" },
-};
 
 /** CTO dashboard (spec §13): "What needs my attention right now?" */
 export default function AdminDashboardPage() {
@@ -51,12 +44,16 @@ export default function AdminDashboardPage() {
 
   return (
     <Page>
-      <PageHeader title="CTO Dashboard" description="ClickfieldAI Operations: what needs your attention right now." />
+      <DashboardGreeting
+        section="ClickfieldAI Operations"
+        description="CTO dashboard: what needs your attention right now across every client and queue."
+      />
+      <AdminHero />
       {isLoading && <LoadingState label="Loading dashboard..." />}
       {error && <ErrorText>{(error as Error).message}</ErrorText>}
       {data && (
         <>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6 xl:gap-6">
             {METRICS.map((m) => (
               <StatCard
                 key={m.key}
@@ -70,29 +67,16 @@ export default function AdminDashboardPage() {
             ))}
           </div>
 
-          <SectionTitle className="mt-10">Priority Queue</SectionTitle>
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            {data.priority_queue.map((p) => {
-              const critical = p.priority === "CRITICAL" && p.count > 0;
-              // Empty buckets stay calm; only a non-empty Critical bucket gets the alarm treatment.
-              const s =
-                p.priority === "CRITICAL" && !critical
-                  ? { card: "border-slate-200 bg-white", count: "text-slate-900", bar: "bg-red-600" }
-                  : QUEUE_STYLES[p.priority];
-              return (
-                <div key={p.priority} className={cn("relative overflow-hidden rounded-lg border p-4 shadow-sm", s.card)}>
-                  <span className={cn("absolute inset-y-0 left-0 w-1", s.bar)} aria-hidden />
-                  <div className="flex items-center justify-between gap-2 pl-1">
-                    <PriorityBadge priority={p.priority} />
-                    {critical && <Flame className="h-4 w-4 text-red-600" aria-hidden />}
-                  </div>
-                  <p className={cn("mt-3 pl-1 text-3xl font-semibold tabular tracking-tight", s.count)}>{p.count}</p>
-                  <p className="pl-1 text-xs text-slate-500">
-                    {statusLabel(p.priority)} ticket{p.count === 1 ? "" : "s"}
-                  </p>
-                </div>
-              );
-            })}
+          <div className="mt-10 grid gap-6 md:grid-cols-2 xl:grid-cols-12">
+            <div className="md:col-span-2 xl:col-span-6">
+              <TicketTrends />
+            </div>
+            <div className="xl:col-span-3">
+              <PriorityQueue rows={data.priority_queue} href="/admin/tickets" />
+            </div>
+            <div className="xl:col-span-3">
+              <NotificationsPanel ticketBasePath="/admin/tickets" title="Recent activity" className="mt-0 h-full" />
+            </div>
           </div>
 
           <SectionTitle
@@ -125,8 +109,8 @@ export default function AdminDashboardPage() {
                         <TicketNumberLink href={`/admin/tickets/${t.id}`}>{t.ticket_number}</TicketNumberLink>
                       </TD>
                       <TD className="text-slate-600">{t.organization_name}</TD>
-                      <TD className="max-w-[280px] truncate font-medium text-slate-900">
-                        <Link href={`/admin/tickets/${t.id}`} className="rounded hover:text-brand-700">
+                      <TD className="max-w-[320px] truncate font-semibold text-cf-ink">
+                        <Link href={`/admin/tickets/${t.id}`} className="rounded-sm underline-offset-4 hover:underline">
                           {t.subject}
                         </Link>
                       </TD>
@@ -153,7 +137,6 @@ export default function AdminDashboardPage() {
           </TableContainer>
         </>
       )}
-      <NotificationsPanel ticketBasePath="/admin/tickets" />
     </Page>
   );
 }

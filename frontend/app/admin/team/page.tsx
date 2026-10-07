@@ -53,9 +53,9 @@ export default function TeamWorkloadPage() {
                     <TD>
                       <div className="flex items-center gap-3">
                         <span className="w-6 text-right font-semibold tabular text-slate-900">{r.active_total}</span>
-                        <span className="h-1.5 w-24 overflow-hidden rounded-full bg-slate-100" aria-hidden>
+                        <span className="h-1.5 w-24 overflow-hidden bg-slate-100" aria-hidden>
                           <span
-                            className="block h-full rounded-full bg-brand-500"
+                            className="block h-full bg-cf-black"
                             style={{ width: `${(r.active_total / max) * 100}%` }}
                           />
                         </span>

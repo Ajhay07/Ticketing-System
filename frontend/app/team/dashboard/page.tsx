@@ -4,15 +4,16 @@ import { ArrowRight } from "lucide-react";
 import { NotificationsPanel } from "@/components/NotificationsPanel";
 import { StatusCounts } from "@/components/StatusCounts";
 import { ButtonLink } from "@/components/ui/Button";
-import { Page, PageHeader } from "@/components/ui/Card";
+import { Page } from "@/components/ui/Card";
+import { DashboardGreeting } from "@/components/dashboard/Editorial";
 
 /** Team dashboard. Team members see only tickets assigned to them (decision #5). */
 export default function TeamDashboardPage() {
   return (
     <Page>
-      <PageHeader
-        title="Team Dashboard"
-        description="ClickfieldAI Team: your assigned work at a glance."
+      <DashboardGreeting
+        section="ClickfieldAI Team"
+        description="Team workspace: your assigned work at a glance."
         actions={
           <ButtonLink href="/team/tickets" variant="primary">
             My Assigned Tickets

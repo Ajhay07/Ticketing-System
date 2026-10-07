@@ -4,14 +4,15 @@ import { Plus } from "lucide-react";
 import { NotificationsPanel } from "@/components/NotificationsPanel";
 import { StatusCounts } from "@/components/StatusCounts";
 import { ButtonLink } from "@/components/ui/Button";
-import { Page, PageHeader } from "@/components/ui/Card";
+import { Page } from "@/components/ui/Card";
+import { DashboardGreeting } from "@/components/dashboard/Editorial";
 
 /** Client dashboard (spec §17). */
 export default function ClientDashboardPage() {
   return (
     <Page>
-      <PageHeader
-        title="My Tickets"
+      <DashboardGreeting
+        section="ClickfieldAI Support"
         description="Welcome to ClickfieldAI Support. Track the status of your requests here."
         actions={
           <>
