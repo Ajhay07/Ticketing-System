@@ -79,7 +79,7 @@ export function DashboardGreeting({
     : " ";
 
   return (
-    <header className="mb-10 grid gap-6 border-b border-cf-ink pb-8 lg:grid-cols-12 lg:items-end">
+    <header className="mb-7 grid gap-6 border-b border-cf-ink pb-6lg:grid-cols-12 lg:items-end">
       <div className="lg:col-span-8">
         <p className="cf-label flex flex-wrap items-center gap-x-3 gap-y-1">
           <span className="text-cf-ink">{section}</span>
@@ -104,49 +104,72 @@ export function DashboardGreeting({
 /* ------------------------------------------------------------------ */
 
 const HERO_SRC = "/design-assets/02_brutalist_hero_architecture.jpg";
-// Show only the architectural half of the 1030x283 reference (building +
-// its cobalt block, x 0..545); the baked-in text is replaced by live type.
+// Source is 1030x283. Only the architecture (x 0..527) is shown; its baked-in
+// copy is replaced by live type. The source's cobalt plane spans
+// x 209..526 / y 13..181 - the CSS block below continues that plane BEHIND the
+// photo so the building reads as standing in front of one blue layer.
 const HERO_W = 1030;
 const HERO_H = 283;
-const HERO_CROP_W = 545;
+const HERO_CROP_W = 522; // ends inside solid blue so no seam shows
+const HERO_BLUE = "#0056FE"; // sampled from the source so the planes join seamlessly
+const HERO_SKY = "#F1F1F1"; // sampled sky tone of the source
+const pct = (v: number, of: number) => `${(v / of) * 100}%`;
 
 export function AdminHero() {
   return (
     <section
       aria-label="ClickfieldAI Operations"
-      className="mb-10 hidden overflow-hidden border border-cf-border bg-white md:grid md:grid-cols-12"
+      className="mb-6 grid h-auto overflow-hidden border border-cf-ink bg-white md:mb-8 md:h-[248px] md:grid-cols-[57fr_43fr]"
     >
-      <div className="relative overflow-hidden md:col-span-7 xl:col-span-6" style={{ aspectRatio: `${HERO_CROP_W} / ${HERO_H}` }}>
-        <Image
-          src={HERO_SRC}
-          alt=""
-          width={HERO_W}
-          height={HERO_H}
-          priority
-          sizes="(min-width: 1280px) 800px, 60vw"
-          className="absolute left-0 top-0 h-full max-w-none"
-          style={{ width: `${(HERO_W / HERO_CROP_W) * 100}%` }}
+      {/* Left: layered composition - blue plane (z-0) behind architecture (z-10) */}
+      <div className="relative overflow-hidden md:h-full" style={{ backgroundColor: HERO_SKY }}>
+        <span
+          aria-hidden
+          className="absolute right-0 z-0 hidden md:block"
+          style={{ backgroundColor: HERO_BLUE, top: pct(13, HERO_H), bottom: pct(HERO_H - 182, HERO_H), left: "30%" }}
         />
+        <div
+          className="relative z-10 w-full overflow-hidden md:h-full md:w-auto md:max-w-full"
+          style={{ aspectRatio: `${HERO_CROP_W} / ${HERO_H}` }}
+        >
+          <Image
+            src={HERO_SRC}
+            alt=""
+            width={HERO_W}
+            height={HERO_H}
+            priority
+            sizes="(min-width: 768px) 900px, 100vw"
+            className="absolute left-0 top-0 h-full max-w-none"
+            style={{ width: pct(HERO_W, HERO_CROP_W) }}
+          />
+        </div>
       </div>
-      <div className="cf-dot-grid relative z-10 flex flex-col justify-between gap-6 border-l border-cf-border bg-white p-8 md:col-span-5 xl:col-span-6 xl:p-10">
-        <div className="flex items-start justify-between gap-6">
-          <p className="text-[26px] font-extrabold uppercase leading-[0.98] tracking-[-0.03em] text-cf-black xl:text-[32px]">
+
+      {/* Right: editorial panel with contained dot grid */}
+      <div className="relative flex min-h-[170px] flex-col justify-between border-t border-cf-ink bg-white px-6 py-5 md:min-h-0 md:border-l md:border-t-0 lg:px-8 lg:py-6">
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-0"
+          style={{
+            backgroundImage: "radial-gradient(#000 1px, transparent 1.2px)",
+            backgroundSize: "14px 14px",
+            opacity: 0.2,
+          }}
+        />
+        <div className="relative flex items-start justify-between gap-4">
+          <p className="text-[26px] font-black uppercase leading-[0.92] tracking-[-0.04em] text-cf-black lg:text-[34px] xl:text-[38px]">
             Keep
             <br />
             customers
             <br />
             moving.
           </p>
-          <SwissSlash className="hidden shrink-0 text-cf-black xl:block" />
+          <SwissSlash className="mt-1 h-5 w-5 shrink-0 text-cf-black" />
         </div>
-        <div className="flex items-end justify-between gap-6">
-          <div className="flex-1">
-            <span className="block h-[2px] w-full max-w-[220px] bg-cf-black" aria-hidden />
-            <p className="cf-label mt-4 !text-cf-ink">Track. Prioritize. Resolve.</p>
-          </div>
-          <SwissArrow className="shrink-0 text-cf-black" />
+        <div className="relative flex items-end justify-between gap-4">
+          <p className="text-[10px] font-bold uppercase tracking-[0.10em] text-cf-black">Track. Prioritize. Resolve.</p>
+          <SwissArrow className="h-8 w-8 shrink-0 text-cf-black lg:h-9 lg:w-9" />
         </div>
-        <span className="absolute right-0 top-0 h-3 w-3 bg-cf-blue" aria-hidden />
       </div>
     </section>
   );

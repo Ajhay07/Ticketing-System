@@ -67,7 +67,7 @@ export default function AdminDashboardPage() {
             ))}
           </div>
 
-          <div className="mt-10 grid gap-6 md:grid-cols-2 xl:grid-cols-12">
+          <div className="mt-8 grid gap-6 md:grid-cols-2 xl:grid-cols-12">
             <div className="md:col-span-2 xl:col-span-6">
               <TicketTrends />
             </div>
@@ -80,7 +80,7 @@ export default function AdminDashboardPage() {
           </div>
 
           <SectionTitle
-            className="mt-10"
+            className="mt-8"
             actions={
               <ButtonLink href="/admin/tickets" variant="ghost" size="sm">
                 View all
