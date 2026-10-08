@@ -208,3 +208,32 @@ def test_notifications_module_never_imports_privileged() -> None:
     import inspect
 
     assert "privileged" not in inspect.getsource(notifications)
+
+
+def test_attachment_count_below_cap_is_allowed() -> None:
+    attachments.validate_attachment_count(0)
+    attachments.validate_attachment_count(49)
+
+
+def test_attachment_count_at_cap_is_rejected() -> None:
+    with pytest.raises(attachments.AttachmentValidationError):
+        attachments.validate_attachment_count(50)
+
+
+def test_each_file_in_a_batch_is_validated_independently() -> None:
+    # The create-ticket form uploads several files; each goes through the same
+    # per-file validator, so one bad file never makes another one pass or fail.
+    batch = [
+        ("ok.pdf", "application/pdf", 10),
+        ("evil.exe", "application/x-msdownload", 10),
+        ("ok.png", "image/png", 10),
+        ("huge.zip", "application/zip", 25 * 1024 * 1024 + 1),
+    ]
+    results = []
+    for name, mime, size in batch:
+        try:
+            attachments.validate_attachment(file_name=name, mime_type=mime, file_size=size)
+            results.append(True)
+        except attachments.AttachmentValidationError:
+            results.append(False)
+    assert results == [True, False, True, False]

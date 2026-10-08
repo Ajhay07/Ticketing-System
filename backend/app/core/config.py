@@ -58,6 +58,9 @@ class Settings(BaseSettings):
     # supabase/migrations/0003_storage_attachments.sql.
     storage_bucket: str = "ticket-attachments"
     attachment_max_bytes: int = 25 * 1024 * 1024
+    # Abuse cap on live attachments per ticket (all uploads, any role). The
+    # create-ticket form additionally limits a single submission to 10 files.
+    attachment_max_per_ticket: int = 50
     signed_url_expires_seconds: int = 60
 
     # Rate limiting defaults (spec §54). See app/services/rate_limit.py.

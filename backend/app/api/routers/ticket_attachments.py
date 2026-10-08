@@ -96,6 +96,15 @@ def create_attachment(
     ):
         raise ticket_service.not_found()
 
+    with conn.cursor() as cur:
+        # Live (non-deleted, RLS-visible) attachments only.
+        cur.execute("select count(*) from ticket_attachments where ticket_id = %s", (str(ticket_id),))
+        count_row = cur.fetchone()
+    try:
+        attachment_rules.validate_attachment_count(int(count_row[0]) if count_row else 0)
+    except attachment_rules.AttachmentValidationError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+
     on_internal_note = False
     if body.comment_id is not None:
         with conn.cursor() as cur:

@@ -50,6 +50,18 @@ def validate_attachment(*, file_name: str, mime_type: str, file_size: int) -> No
         raise AttachmentValidationError("File extension does not match an allowed type")
 
 
+def validate_attachment_count(existing_count: int) -> None:
+    """Reject a new attachment once the ticket holds the maximum allowed.
+
+    Every file is still validated on its own by validate_attachment(); this
+    only bounds how many files one ticket can accumulate.
+    """
+    if existing_count >= settings.attachment_max_per_ticket:
+        raise AttachmentValidationError(
+            f"A ticket can have at most {settings.attachment_max_per_ticket} attachments"
+        )
+
+
 def scan_hook(*, storage_path: str, mime_type: str) -> None:
     """Extension point for malware scanning (decision #10). Not implemented
     in V1; intentionally a no-op."""
