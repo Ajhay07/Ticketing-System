@@ -64,12 +64,13 @@ def list_attachments(
     principal: Principal = Depends(get_current_principal),
     conn: psycopg.Connection = Depends(get_db),
 ) -> list[dict[str, Any]]:
-    ticket_service.fetch_ticket(conn, str(ticket_id))
-    with conn.cursor() as cur:
+    with conn.pipeline(), conn.cursor() as ticket_cur, conn.cursor() as cur:
+        ticket_service.queue_visibility_check(ticket_cur, str(ticket_id))
         cur.execute(
             f"select {_ATTACHMENT_COLUMNS} from ticket_attachments where ticket_id = %s order by created_at",
             (str(ticket_id),),
         )
+        ticket_service.require_visible(ticket_cur)
         return rows_as_dicts(cur)
 
 

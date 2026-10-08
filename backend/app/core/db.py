@@ -59,17 +59,37 @@ _last_returned: weakref.WeakKeyDictionary[psycopg.Connection, float] = weakref.W
 _CHECK_AFTER_IDLE_SECONDS = 30.0
 
 
-def _reset_session(conn: psycopg.Connection) -> None:
-    """Strip any per-request identity before a connection is reused.
+# Connections whose identity was already stripped in-band by _scoped() on the
+# success path (commit + reset in the same round trip). The pool's reset hook
+# skips those once; every other return (errors, anything unexpected) still
+# goes through the full reset below.
+_already_reset: weakref.WeakSet[psycopg.Connection] = weakref.WeakSet()
 
-    BEGIN + RESET ROLE + clear claims + COMMIT go out as one pipelined round
-    trip. If any statement fails, the exception propagates and psycopg_pool
-    discards the connection instead of reusing it (unchanged behavior).
-    """
+
+def _strip_identity(conn: psycopg.Connection) -> None:
+    """RESET ROLE + clear claims + COMMIT, pipelined into one round trip.
+    Callers must not issue it with a request's transaction still pending
+    unless they intend to commit that transaction (see _scoped)."""
     with conn.pipeline():
         conn.execute("reset role")
         conn.execute("select set_config('request.jwt.claims', '', false)")
         conn.commit()
+
+
+def _reset_session(conn: psycopg.Connection) -> None:
+    """Strip any per-request identity before a connection is reused.
+
+    If any statement fails, the exception propagates and psycopg_pool
+    discards the connection instead of reusing it (unchanged behavior).
+    """
+    if conn in _already_reset:
+        _already_reset.discard(conn)
+        # Belt and braces, no network: a connection that was reset in-band
+        # cannot be in a transaction; if it somehow is, do the full reset.
+        if conn.info.transaction_status == psycopg.pq.TransactionStatus.IDLE:
+            _last_returned[conn] = time.monotonic()
+            return
+    _strip_identity(conn)
     _last_returned[conn] = time.monotonic()
 
 
@@ -115,8 +135,15 @@ def _scoped(role: str, claims: dict | None) -> Iterator[psycopg.Connection]:
                 "select set_config('request.jwt.claims', %s, false), set_config('role', %s, false)",
                 (json.dumps(claims) if claims is not None else "", role),
             )
-        # pool.connection() commits on success and rolls back on exception.
+        # pool.connection() rolls back on exception (and then fully resets).
         yield conn
+        # Success: commit the request's work AND strip its identity in one
+        # round trip (was COMMIT, then a separate reset round trip). The
+        # pool's own commit afterwards is a no-op (no open transaction). If
+        # this raises, nothing is marked and the pool rolls back + resets.
+        if conn.info.transaction_status != psycopg.pq.TransactionStatus.INERROR:
+            _strip_identity(conn)
+            _already_reset.add(conn)
 
 
 @contextmanager

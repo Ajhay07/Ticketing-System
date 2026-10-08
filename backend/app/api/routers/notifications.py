@@ -28,7 +28,8 @@ def list_notifications(
     conn: psycopg.Connection = Depends(get_db),
 ) -> dict[str, Any]:
     where = " where read_at is null" if unread_only else ""
-    with conn.cursor() as cur:
+    # Both statements pipelined into one round trip.
+    with conn.pipeline(), conn.cursor() as cur, conn.cursor() as count_cur:
         cur.execute(
             "select n.id, n.ticket_id, t.ticket_number, n.type, n.title, n.message, n.read_at, n.created_at "
             "from notifications n left join tickets t on t.id = n.ticket_id"
@@ -36,9 +37,11 @@ def list_notifications(
             + " order by n.created_at desc limit %s",
             (limit,),
         )
+        count_cur.execute("select count(*) from notifications where read_at is null")
+        # fetchone() syncs the pipeline first, so both results are in hand
+        # before rows_as_dicts() reads cur.description.
+        row = count_cur.fetchone()
         items = rows_as_dicts(cur)
-        cur.execute("select count(*) from notifications where read_at is null")
-        row = cur.fetchone()
     return {"items": items, "unread": int(row[0]) if row else 0}
 
 

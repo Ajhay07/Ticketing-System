@@ -101,6 +101,18 @@ def fetch_ticket(conn: psycopg.Connection, ticket_id: str, *, for_update: bool =
     return ticket
 
 
+def queue_visibility_check(cur: psycopg.Cursor, ticket_id: str) -> None:
+    """Queue the same RLS-scoped visibility lookup fetch_ticket() does, so a
+    caller can pipeline it with its own query (one round trip, not two)."""
+    cur.execute("select 1 from tickets t where t.id = %s", (ticket_id,))
+
+
+def require_visible(cur: psycopg.Cursor) -> None:
+    """404 (decision #4) unless queue_visibility_check() found the ticket."""
+    if cur.fetchone() is None:
+        raise not_found()
+
+
 def list_tickets(
     conn: psycopg.Connection,
     *,

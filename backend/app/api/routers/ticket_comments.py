@@ -52,9 +52,12 @@ def list_comments(
     principal: Principal = Depends(get_current_principal),
     conn: psycopg.Connection = Depends(get_db),
 ) -> list[dict[str, Any]]:
-    ticket_service.fetch_ticket(conn, str(ticket_id))  # 404 if not visible
-    with conn.cursor() as cur:
+    # Visibility check and list pipelined into one round trip; 404 if the
+    # ticket is not visible to the caller (RLS), exactly as before.
+    with conn.pipeline(), conn.cursor() as ticket_cur, conn.cursor() as cur:
+        ticket_service.queue_visibility_check(ticket_cur, str(ticket_id))
         cur.execute(_COMMENT_SELECT + " where tc.ticket_id = %s order by tc.created_at", (str(ticket_id),))
+        ticket_service.require_visible(ticket_cur)
         return rows_as_dicts(cur)
 
 
