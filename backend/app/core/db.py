@@ -33,6 +33,8 @@ from __future__ import annotations
 
 import json
 import threading
+import time
+import weakref
 from collections.abc import Iterator
 from contextlib import contextmanager
 
@@ -45,13 +47,38 @@ from app.core.security import Principal
 _pool: ConnectionPool | None = None
 _pool_lock = threading.Lock()
 
+# The database is a full cross-region round trip away, so every statement the
+# pool itself sends (ping, BEGIN, reset, COMMIT) costs as much as a real
+# query. Pipeline mode sends a group of statements in ONE round trip; the
+# semantics are unchanged (same statements, same order, same transaction).
+
+# When each pooled connection was last returned. Only connections idle longer
+# than this are pinged on checkout: a connection used moments ago is alive,
+# and pinging it on every request cost a full round trip per request.
+_last_returned: weakref.WeakKeyDictionary[psycopg.Connection, float] = weakref.WeakKeyDictionary()
+_CHECK_AFTER_IDLE_SECONDS = 30.0
+
 
 def _reset_session(conn: psycopg.Connection) -> None:
-    """Strip any per-request identity before a connection is reused."""
-    with conn.cursor() as cur:
-        cur.execute("reset role")
-        cur.execute("select set_config('request.jwt.claims', '', false)")
-    conn.commit()
+    """Strip any per-request identity before a connection is reused.
+
+    BEGIN + RESET ROLE + clear claims + COMMIT go out as one pipelined round
+    trip. If any statement fails, the exception propagates and psycopg_pool
+    discards the connection instead of reusing it (unchanged behavior).
+    """
+    with conn.pipeline():
+        conn.execute("reset role")
+        conn.execute("select set_config('request.jwt.claims', '', false)")
+        conn.commit()
+    _last_returned[conn] = time.monotonic()
+
+
+def _check_if_idle(conn: psycopg.Connection) -> None:
+    """Ping only connections that sat idle long enough for the remote pooler
+    to have dropped them; raising makes the pool discard and replace it."""
+    returned = _last_returned.get(conn)
+    if returned is None or time.monotonic() - returned > _CHECK_AFTER_IDLE_SECONDS:
+        ConnectionPool.check_connection(conn)
 
 
 def _get_pool() -> ConnectionPool:
@@ -68,9 +95,9 @@ def _get_pool() -> ConnectionPool:
                     max_idle=300,
                     timeout=15,
                     reset=_reset_session,
-                    # One cheap round trip to drop connections the remote
-                    # pooler closed while idle, instead of failing a request.
-                    check=ConnectionPool.check_connection,
+                    # Drop connections the remote pooler closed while idle,
+                    # instead of failing a request (pings only idle ones).
+                    check=_check_if_idle,
                     open=True,
                     name="user_scoped",
                 )
@@ -80,11 +107,14 @@ def _get_pool() -> ConnectionPool:
 @contextmanager
 def _scoped(role: str, claims: dict | None) -> Iterator[psycopg.Connection]:
     with _get_pool().connection() as conn:
-        # One round trip: set_config('role', ..., false) is equivalent to SET ROLE.
-        conn.execute(
-            "select set_config('request.jwt.claims', %s, false), set_config('role', %s, false)",
-            (json.dumps(claims) if claims is not None else "", role),
-        )
+        # set_config('role', ..., false) is equivalent to SET ROLE. Pipelined
+        # so the implicit BEGIN and this statement share one round trip; the
+        # pipeline syncs (and raises on error) before any route query runs.
+        with conn.pipeline():
+            conn.execute(
+                "select set_config('request.jwt.claims', %s, false), set_config('role', %s, false)",
+                (json.dumps(claims) if claims is not None else "", role),
+            )
         # pool.connection() commits on success and rolls back on exception.
         yield conn
 

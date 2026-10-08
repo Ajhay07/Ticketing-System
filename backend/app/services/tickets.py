@@ -171,10 +171,11 @@ def list_tickets(
     where = sql.SQL(" where ") + sql.SQL(" and ").join(conditions) if conditions else sql.SQL("")
     order = sql.SQL(SORTS.get(sort, SORTS["default"]))
 
-    with conn.cursor() as cur:
-        cur.execute(sql.SQL("select count(*)") + sql.SQL(_TICKET_FROM) + where, params)
-        count_row = cur.fetchone()
-        total = int(count_row[0]) if count_row else 0
+    # Pipelined: the count and the page are sent together and come back in
+    # ONE network round trip instead of two (same statements, same
+    # transaction, same RLS scope). Both execute before either is fetched.
+    with conn.pipeline(), conn.cursor() as count_cur, conn.cursor() as cur:
+        count_cur.execute(sql.SQL("select count(*)") + sql.SQL(_TICKET_FROM) + where, params)
         cur.execute(
             sql.SQL(_TICKET_SELECT)
             + where
@@ -183,6 +184,8 @@ def list_tickets(
             + sql.SQL(" limit %s offset %s"),
             [*params, page_size, (page - 1) * page_size],
         )
+        count_row = count_cur.fetchone()
+        total = int(count_row[0]) if count_row else 0
         items = rows_as_dicts(cur)
     return {"items": items, "page": page, "page_size": page_size, "total": total}
 

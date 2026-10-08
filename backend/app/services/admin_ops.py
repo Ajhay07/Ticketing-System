@@ -39,20 +39,25 @@ _TICKET_COUNTS = f"""
 
 def dashboard(conn: psycopg.Connection) -> dict[str, Any]:
     """Spec §13: top-level metrics, priority queue, recent tickets."""
+    # One statement (was two): headline metrics and the active-ticket
+    # priority breakdown come from the same scan of tickets.
     with conn.cursor() as cur:
         cur.execute(
             f"""
             select {_TICKET_COUNTS},
                    count(t.id) filter (where t.resolved_at >= date_trunc('day', now())) as resolved_today,
-                   count(t.id) filter (where t.assigned_to is null and {ACTIVE}) as unassigned
+                   count(t.id) filter (where t.assigned_to is null and {ACTIVE}) as unassigned,
+                   count(t.id) filter (where {ACTIVE} and t.priority = 'CRITICAL') as p_critical,
+                   count(t.id) filter (where {ACTIVE} and t.priority = 'HIGH') as p_high,
+                   count(t.id) filter (where {ACTIVE} and t.priority = 'MEDIUM') as p_medium,
+                   count(t.id) filter (where {ACTIVE} and t.priority = 'LOW') as p_low
             from tickets t
             """  # noqa: S608 - only code literals are interpolated
         )
         metrics = row_as_dict(cur) or {}
-        cur.execute(f"select t.priority, count(*) from tickets t where {ACTIVE} group by t.priority")  # noqa: S608
-        by_priority = {str(p): int(n) for p, n in cur.fetchall()}
     priority_queue = [
-        {"priority": p, "count": by_priority.get(p, 0)} for p in ("CRITICAL", "HIGH", "MEDIUM", "LOW")
+        {"priority": p, "count": int(metrics.pop(f"p_{p.lower()}", 0) or 0)}
+        for p in ("CRITICAL", "HIGH", "MEDIUM", "LOW")
     ]
     recent = ticket_service.list_tickets(
         conn, page=1, page_size=25, status_filter=None, priority=None, assigned_to=None, sort="newest"
