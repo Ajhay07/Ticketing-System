@@ -507,6 +507,37 @@ def test_attachment_upload_and_download_roundtrip(s: dict) -> None:
     assert "attachment_added" in [a["action"] for a in _audit_actions(tid)]
 
 
+def test_failed_upload_can_be_abandoned_only_by_uploader_and_only_without_object(s: dict) -> None:
+    """Multi-file ticket creation: a file whose PUT failed is cleaned up via
+    /abandon (soft delete), but a real uploaded file can never be removed
+    that way, and nobody but the uploader can abandon."""
+    tid = s["ticket"]
+    # Uploaded file from the roundtrip test: object exists -> 409.
+    r = client.post(f"/api/tickets/{tid}/attachments/{s['attachment_id']}/abandon", headers=_h(s, "client_a"))
+    assert r.status_code == 409, r.text
+
+    r = client.post(
+        f"/api/tickets/{tid}/attachments",
+        headers=_h(s, "client_a"),
+        json={"file_name": "never-uploaded.pdf", "mime_type": "application/pdf", "file_size": 10},
+    )
+    assert r.status_code == 201, r.text
+    orphan = r.json()["id"]
+    # Other tenant and a staff member who is not the uploader: 404, nothing changes.
+    for who in ("client_b", "arjun"):
+        r = client.post(f"/api/tickets/{tid}/attachments/{orphan}/abandon", headers=_h(s, who))
+        assert r.status_code == 404, (who, r.text)
+    listed = client.get(f"/api/tickets/{tid}/attachments", headers=_h(s, "client_a")).json()
+    assert orphan in [a["id"] for a in listed]
+    # The uploader abandons it: soft-deleted, gone from the list, audited.
+    r = client.post(f"/api/tickets/{tid}/attachments/{orphan}/abandon", headers=_h(s, "client_a"))
+    assert r.status_code == 204, r.text
+    listed = client.get(f"/api/tickets/{tid}/attachments", headers=_h(s, "client_a")).json()
+    assert orphan not in [a["id"] for a in listed]
+    assert s["attachment_id"] in [a["id"] for a in listed]
+    assert "attachment_upload_failed" in [a["action"] for a in _audit_actions(tid)]
+
+
 def test_cross_tenant_attachment_access_denied(s: dict) -> None:
     tid, aid = s["ticket"], s["attachment_id"]
     r = client.get(f"/api/tickets/{tid}/attachments/{aid}/download", headers=_h(s, "client_b"))

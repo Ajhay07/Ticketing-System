@@ -25,7 +25,7 @@ from typing import Annotated, Any
 from uuid import UUID
 
 import psycopg
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, StringConstraints
 
 from app.api.deps import client_ip, get_current_principal, get_db
@@ -205,3 +205,53 @@ def download_attachment(
         # Storage itself refused (e.g. object never uploaded). Don't leak why.
         raise _not_found() from exc
     return {"url": url, "expires_in": settings.signed_url_expires_seconds}
+
+
+@router.post("/{ticket_id}/attachments/{attachment_id}/abandon", status_code=204, response_class=Response)
+def abandon_attachment(
+    ticket_id: UUID,
+    attachment_id: UUID,
+    request: Request,
+    principal: Principal = Depends(get_current_principal),
+    conn: psycopg.Connection = Depends(get_db),
+) -> Response:
+    """The uploader reports that the browser's PUT for this attachment failed.
+
+    Removes the object-less metadata row so it does not linger as an
+    undownloadable file (multi-file ticket creation). Narrow by design:
+    - only the uploader (or an admin, via soft_delete_attachment's own checks);
+    - only when NO storage object exists behind the row - a real, uploaded
+      file can never be removed through this endpoint (409);
+    - soft delete through soft_delete_attachment() (0004), never a hard delete.
+    """
+    with conn.cursor() as cur:
+        cur.execute(
+            "select uploaded_by, file_name, storage_path from ticket_attachments"
+            " where id = %s and ticket_id = %s",
+            (str(attachment_id), str(ticket_id)),
+        )
+        row = row_as_dict(cur)
+    if row is None or str(row["uploaded_by"]) != principal.user_id:
+        raise _not_found()
+    try:
+        storage.create_signed_download_url(principal, row["storage_path"], row["file_name"])
+    except storage.StorageError:
+        pass  # no object behind the row: safe to abandon
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="File was uploaded; nothing to abandon"
+        )
+    with conn.cursor() as cur:
+        cur.execute("select soft_delete_attachment(%s)", (str(attachment_id),))
+        deleted = cur.fetchone()
+    if not deleted or not deleted[0]:
+        raise _not_found()
+    write_audit(
+        conn,
+        ticket_id=str(ticket_id),
+        user_id=principal.user_id,
+        action="attachment_upload_failed",
+        new_value={"attachment_id": str(attachment_id), "file_name": row["file_name"]},
+        ip_address=client_ip(request),
+    )
+    return Response(status_code=204)
