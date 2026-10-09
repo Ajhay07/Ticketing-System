@@ -34,28 +34,37 @@ export default function ResetPasswordPage() {
   useEffect(() => {
     const supabase = createSupabaseBrowserClient();
 
-    // If a session is already present by the time this mounts (fragment
-    // already processed), allow the form immediately.
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session) setReady(true);
-    });
-
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === "PASSWORD_RECOVERY" || (event === "SIGNED_IN" && session)) {
         setReady(true);
       }
     });
 
-    // If no recovery session shows up quickly, the link was invalid/expired
-    // (or this page was opened directly) - send them to request a fresh one
-    // rather than leaving a dead form on screen.
+    // The SSR browser client does not auto-detect URL fragments. Parse the
+    // fragment ourselves and exchange the tokens to establish a session.
+    const hash = window.location.hash.substring(1);
+    if (hash) {
+      const params = new URLSearchParams(hash);
+      const accessToken = params.get("access_token");
+      const refreshToken = params.get("refresh_token");
+      if (accessToken && refreshToken) {
+        supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken }).then(({ error: err }) => {
+          if (err) {
+            setError("Your link has expired. Please request a new one.");
+          }
+        });
+      }
+    }
+
+    // If no recovery session shows up after a generous window, the link was
+    // invalid/expired or the page was opened directly.
     const timeout = setTimeout(() => {
       supabase.auth.getSession().then(({ data }) => {
         if (!data.session) {
           router.replace("/forgot-password");
         }
       });
-    }, 4000);
+    }, 10000);
 
     return () => {
       sub.subscription.unsubscribe();
