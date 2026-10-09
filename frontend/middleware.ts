@@ -35,7 +35,8 @@ export async function middleware(request: NextRequest) {
   const { data } = await supabase.auth.getSession();
   const isPublicRoute =
     request.nextUrl.pathname.startsWith("/login") ||
-    request.nextUrl.pathname.startsWith("/forgot-password");
+    request.nextUrl.pathname.startsWith("/forgot-password") ||
+    request.nextUrl.pathname.startsWith("/reset-password");
 
   if (!data.session && !isPublicRoute) {
     const loginUrl = new URL("/login", request.url);
