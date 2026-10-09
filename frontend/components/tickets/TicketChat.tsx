@@ -1,13 +1,22 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useMutation } from "@tanstack/react-query";
-import { Lock, MessageSquare, MessagesSquare, Paperclip, Send, X } from "lucide-react";
+import { useMutation, useMutationState, useQueryClient, type Mutation } from "@tanstack/react-query";
+import { AlertCircle, Lock, MessageSquare, MessagesSquare, Paperclip, RotateCcw, Send, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/components/ui/cn";
 import { ErrorText } from "@/components/ui/Form";
 import { EmptyState, Skeleton, Spinner } from "@/components/ui/States";
-import { attachmentsByComment, initials, messageKind, type MessageKind } from "@/lib/chat";
+import {
+  attachmentsByComment,
+  initials,
+  messageKind,
+  upsertComment,
+  visiblePending,
+  type MessageKind,
+  type PendingMessage,
+  type SendVars,
+} from "@/lib/chat";
 import {
   apiJson,
   formatBytes,
@@ -45,11 +54,13 @@ export function TicketChat({
   myUserId: string;
   staff: boolean;
   closed: boolean;
-  onPosted: () => void;
+  onPosted: (sentFile: boolean) => void;
 }) {
   // Defence in depth for rendering only.
   const visible = comments.filter((c) => staff || c.visibility !== "INTERNAL");
   const files = attachmentsByComment(attachments);
+  const { pending, retry, discard, send } = useSendMessage(ticketId, onPosted);
+  const shownPending = visiblePending(pending).filter((p) => staff || p.visibility !== "INTERNAL");
 
   return (
     <section aria-labelledby="conversation-heading">
@@ -67,7 +78,7 @@ export function TicketChat({
               <Skeleton className="ml-auto h-16 w-2/3" />
             </div>
           )}
-          {!loading && visible.length === 0 && (
+          {!loading && visible.length === 0 && shownPending.length === 0 && (
             <EmptyState
               compact
               icon={MessageSquare}
@@ -87,6 +98,15 @@ export function TicketChat({
                 ticketId={ticketId}
               />
             ))}
+            {shownPending.map((p) => (
+              <PendingBubble
+                key={p.clientId}
+                message={p}
+                staff={staff}
+                onRetry={() => retry(p)}
+                onDiscard={() => discard(p.mutationId)}
+              />
+            ))}
           </ol>
         </div>
         {closed ? (
@@ -94,7 +114,7 @@ export function TicketChat({
             This ticket is closed. Reopen it to send a new message.
           </p>
         ) : (
-          <Composer ticketId={ticketId} staff={staff} onPosted={onPosted} />
+          <Composer ticketId={ticketId} staff={staff} send={send} />
         )}
       </div>
     </section>
@@ -190,7 +210,15 @@ function ChatMessage({
   );
 }
 
-function Composer({ ticketId, staff, onPosted }: { ticketId: string; staff: boolean; onPosted: () => void }) {
+function Composer({
+  ticketId,
+  staff,
+  send,
+}: {
+  ticketId: string;
+  staff: boolean;
+  send: (vars: SendVars, file: File | null) => void;
+}) {
   const [text, setText] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [visibility, setVisibility] = useState<"CLIENT" | "INTERNAL">("CLIENT");
@@ -207,34 +235,17 @@ function Composer({ ticketId, staff, onPosted }: { ticketId: string; staff: bool
     el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
   }, [text]);
 
-  const send = useMutation({
-    mutationFn: async () => {
-      let commentId: string | undefined;
-      if (text.trim()) {
-        const created = await apiJson<Comment>(`/api/tickets/${ticketId}/comments`, {
-          method: "POST",
-          body: JSON.stringify({ comment: text, visibility }),
-        });
-        commentId = created.id;
-        setText("");
-      }
-      if (file) {
-        try {
-          // Same private-storage upload path as the Attachments card; bound to the message when there is one.
-          await uploadAttachment(ticketId, file, commentId);
-        } catch (e) {
-          const msg = (e as Error).message;
-          throw new Error(commentId ? `Message sent, but the attachment failed: ${msg}` : msg);
-        }
-        setFile(null);
-      }
-    },
-    onMutate: () => setError(null),
-    onSettled: onPosted,
-    onError: (e: Error) => setError(e.message),
-  });
+  const canSend = text.trim().length > 0 || file !== null;
 
-  const canSend = (text.trim().length > 0 || file !== null) && !send.isPending;
+  function submit() {
+    if (!canSend) return;
+    setError(null);
+    // Optimistic: the bubble appears immediately and the composer clears; the
+    // request runs in the background (useSendMessage).
+    send({ clientId: newClientId(), text: text.trim(), visibility, fileName: file?.name ?? null }, file);
+    setText("");
+    setFile(null);
+  }
 
   return (
     <form
@@ -244,7 +255,7 @@ function Composer({ ticketId, staff, onPosted }: { ticketId: string; staff: bool
       )}
       onSubmit={(e) => {
         e.preventDefault();
-        if (canSend) send.mutate();
+        submit();
       }}
     >
       {staff && (
@@ -310,7 +321,6 @@ function Composer({ ticketId, staff, onPosted }: { ticketId: string; staff: bool
           variant="ghost"
           className="h-10 w-10 shrink-0 px-0"
           onClick={() => fileRef.current?.click()}
-          disabled={send.isPending}
           aria-label="Attach a file"
         >
           <Paperclip className="h-4 w-4" />
@@ -349,7 +359,7 @@ function Composer({ ticketId, staff, onPosted }: { ticketId: string; staff: bool
               window.matchMedia("(pointer: fine)").matches
             ) {
               e.preventDefault();
-              if (canSend) send.mutate();
+              submit();
             }
           }}
           placeholder={internal ? "Write an internal note" : staff ? "Reply to the client" : "Write a message"}
@@ -365,9 +375,7 @@ function Composer({ ticketId, staff, onPosted }: { ticketId: string; staff: bool
           disabled={!canSend}
           aria-label={internal ? "Add internal note" : "Send message"}
         >
-          {send.isPending ? (
-            <Spinner className="text-white/80" />
-          ) : internal ? (
+          {internal ? (
             <Lock className="h-4 w-4" />
           ) : (
             <Send className="h-4 w-4" />
@@ -376,5 +384,172 @@ function Composer({ ticketId, staff, onPosted }: { ticketId: string; staff: bool
         </Button>
       </div>
     </form>
+  );
+}
+
+let clientSeq = 0;
+function newClientId(): string {
+  clientSeq += 1;
+  return `local-${Date.now().toString(36)}-${clientSeq}`;
+}
+
+type SendResult = { created: Comment | null };
+/** The message was saved; only its file upload failed. */
+class AttachmentAfterMessageError extends Error {}
+
+/**
+ * Optimistic message sending (TanStack Query v5 "via the mutation cache"
+ * pattern). Every send is its own mutation keyed by ticket, so pending and
+ * failed messages survive the thread's polling/realtime updates and are
+ * rendered from useMutationState. On success the created comment is written
+ * into the ["comments", ticketId] cache with setQueryData - no refetch.
+ */
+export function useSendMessage(ticketId: string, onPosted: (sentFile: boolean) => void) {
+  const queryClient = useQueryClient();
+  const mutationKey = ["send-message", ticketId];
+  const files = useRef(new Map<string, File>());
+
+  const mutation = useMutation<SendResult, Error, SendVars>({
+    mutationKey,
+    gcTime: Infinity, // keep failed sends until retried or discarded
+    mutationFn: async (vars) => {
+      const file = files.current.get(vars.clientId) ?? null;
+      let created: Comment | null = null;
+      if (vars.text) {
+        created = await apiJson<Comment>(`/api/tickets/${ticketId}/comments`, {
+          method: "POST",
+          body: JSON.stringify({ comment: vars.text, visibility: vars.visibility }),
+        });
+        const persisted = created;
+        queryClient.setQueryData<Comment[]>(["comments", ticketId], (old) => upsertComment(old, persisted));
+      }
+      if (file) {
+        try {
+          // Same private-storage upload path as the Attachments card; bound to the message when there is one.
+          await uploadAttachment(ticketId, file, created?.id);
+        } catch (e) {
+          const msg = (e as Error).message;
+          if (created) throw new AttachmentAfterMessageError(`Message sent, but the attachment failed: ${msg}`);
+          throw e;
+        }
+      }
+      return { created };
+    },
+    onMutate: async () => {
+      // A poll already in flight could land after our write and briefly drop the new message.
+      await queryClient.cancelQueries({ queryKey: ["comments", ticketId] });
+    },
+    onSettled: (_data, error, vars) => {
+      const hadFile = files.current.has(vars.clientId);
+      if (!error) files.current.delete(vars.clientId); // kept for Retry after a failure
+      onPosted(hadFile && !error);
+    },
+  });
+
+  const pending = useMutationState({
+    filters: { mutationKey, predicate: (m) => m.state.status === "pending" || m.state.status === "error" },
+    select: (m: Mutation<unknown, Error, unknown, unknown>): PendingMessage => {
+      const vars = m.state.variables as SendVars;
+      const error = m.state.error;
+      const saved = error instanceof AttachmentAfterMessageError;
+      return {
+        ...vars,
+        // The text already reached the thread; keep only the file note visible.
+        text: saved ? "" : vars.text,
+        mutationId: m.mutationId,
+        status: m.state.status === "error" ? "error" : "pending",
+        error: error ? error.message : null,
+        submittedAt: m.state.submittedAt,
+      };
+    },
+  });
+
+  function removeMutation(mutationId: number) {
+    const cache = queryClient.getMutationCache();
+    const m = cache.getAll().find((x) => x.mutationId === mutationId);
+    if (m) cache.remove(m);
+  }
+
+  return {
+    pending,
+    send: (vars: SendVars, file: File | null) => {
+      if (file) files.current.set(vars.clientId, file);
+      mutation.mutate(vars);
+    },
+    retry: (p: PendingMessage) => {
+      removeMutation(p.mutationId);
+      mutation.mutate({ clientId: p.clientId, text: p.text, visibility: p.visibility, fileName: p.fileName });
+    },
+    discard: (mutationId: number) => removeMutation(mutationId),
+  };
+}
+
+function PendingBubble({
+  message,
+  staff,
+  onRetry,
+  onDiscard,
+}: {
+  message: PendingMessage;
+  staff: boolean;
+  onRetry: () => void;
+  onDiscard: () => void;
+}) {
+  const kind: MessageKind = message.visibility === "INTERNAL" ? "internal" : staff ? "staff" : "client";
+  const failed = message.status === "error";
+  return (
+    <li className="flex flex-row-reverse items-end gap-2" data-kind={kind} data-pending={failed ? "failed" : "sending"}>
+      <span
+        className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded text-2xs font-bold", AVATAR[kind])}
+        aria-hidden
+      >
+        {kind === "internal" ? <Lock className="h-3.5 w-3.5" /> : "Y"}
+      </span>
+      <div className="flex min-w-0 max-w-[85%] flex-col items-end sm:max-w-[75%]">
+        <div className="mb-1 text-xs font-semibold text-slate-800">You</div>
+        <div
+          className={cn(
+            "max-w-full rounded-md rounded-br-none px-3.5 py-2.5 transition-opacity",
+            BUBBLE[kind],
+            failed ? "ring-2 ring-red-500" : "opacity-70"
+          )}
+        >
+          {message.text && <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">{message.text}</p>}
+          {message.fileName && (
+            <p className="mt-1 flex items-center gap-1.5 text-xs opacity-80">
+              <Paperclip className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              <span className="truncate">{message.fileName}</span>
+            </p>
+          )}
+        </div>
+        {failed ? (
+          <div className="mt-1 flex flex-wrap items-center justify-end gap-2 text-2xs" role="alert">
+            <span className="flex items-center gap-1 font-medium text-red-600">
+              <AlertCircle className="h-3 w-3" aria-hidden /> {message.error ?? "Not sent"}
+            </span>
+            {message.text || message.fileName ? (
+              <button
+                type="button"
+                onClick={onRetry}
+                className="flex items-center gap-1 font-semibold text-cf-ink underline-offset-2 hover:underline"
+              >
+                <RotateCcw className="h-3 w-3" aria-hidden /> Retry
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={onDiscard}
+              className="font-semibold text-slate-500 underline-offset-2 hover:underline"
+            >
+              Discard
+            </button>
+          </div>
+        ) : (
+          <span className="mt-1 flex items-center gap-1 text-2xs text-slate-400" role="status">
+            <Spinner className="h-3 w-3" /> Sending...
+          </span>
+        )}
+      </div>
+    </li>
   );
 }

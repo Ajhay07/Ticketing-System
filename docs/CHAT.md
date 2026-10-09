@@ -49,19 +49,42 @@ returns the author's first name via `comment_author_first_name()` and
 `author_role = null`. The chat treats `null` as staff (`messageKind()`). The
 previous thread UI mislabelled these replies as "Client"; that is fixed.
 
-## Freshness: polling, not realtime
+## Freshness: Realtime first, polling as the safety net
 
-While a ticket is open, the comments and attachments queries refetch every
-**15 s** (`CHAT_REFETCH_MS`), plus TanStack Query's refetch on window focus
-and an immediate refetch after you send.
+**Sending (optimistic UI).** Pressing Send shows the message at once with a
+"Sending..." note and clears the box; the POST runs in the background. Each
+send is its own TanStack mutation (`useSendMessage` in `TicketChat.tsx`), so
+in-flight and failed messages are rendered from the mutation cache and survive
+refetches. On success the created comment returned by the API is written into
+the `["comments", ticketId]` cache with `setQueryData`, with no refetch. On
+failure the bubble stays with a red outline, the error, **Retry** and
+**Discard**. Text is never lost.
 
-Supabase Realtime was deliberately **not** added. Postgres-changes
-subscriptions would need the realtime publication enabled on
-`ticket_comments`, the browser's Supabase session carrying the same custom
-role/org claims the API uses, and separate tests proving Realtime's RLS check
-never streams `INTERNAL` rows or other tenants' rows. Polling goes through the
-already-tested API + RLS path, so it can't leak anything new. A delay of up to
-15 s is acceptable for a support ticket conversation.
+**Receiving (Supabase Realtime).** Migration `0007_realtime_comments.sql` adds
+only `ticket_comments` to the `supabase_realtime` publication.
+`lib/useTicketRealtime.ts` opens one channel per open ticket, authenticated
+with the signed-in user's own Supabase JWT and filtered to that `ticket_id`
+for `INSERT`. Realtime authorizes every event against the existing
+`ticket_comments_select` RLS policy for that JWT, so:
+
+- clients never receive internal notes, even unfiltered;
+- nobody receives another organization's messages, even with that ticket's id as the filter;
+- team members only receive messages on tickets assigned to them;
+- an anon-key-only socket receives nothing.
+
+All of this is proven against the real DEV project by
+`backend/tests/test_realtime_rls.py`, with positive controls. The ticket_id
+filter is only a narrowing, not the boundary. The event row is written into
+the cache using the author name/role the API already resolved for that author.
+Only a first message from a not-yet-seen author triggers one list refetch.
+The channel is removed on unmount and on ticket change, so navigating never
+stacks subscriptions.
+
+**Polling fallback.** While the channel is live, comments/attachments poll
+every 60 s as a safety net. If Realtime is down, not yet connected, or 0007
+is not applied (PROD until a human applies it), they poll every 10 s. Both
+paths go through the same API + RLS. Files bound to someone else's new
+message appear on the next attachments poll.
 
 ## Composer
 

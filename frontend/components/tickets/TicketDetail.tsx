@@ -13,7 +13,14 @@ import {
 } from "lucide-react";
 import { TicketChat } from "@/components/tickets/TicketChat";
 import { TicketHistory, TriagePanel } from "@/components/tickets/TicketExtras";
-import { CHAT_REFETCH_MS } from "@/lib/chat";
+import {
+  CHAT_REFETCH_MS,
+  CHAT_REFETCH_REALTIME_MS,
+  commentFromRealtime,
+  upsertComment,
+  type CommentRow,
+} from "@/lib/chat";
+import { useTicketRealtime } from "@/lib/useTicketRealtime";
 import type { Notification } from "@/lib/admin";
 import { DueDate, OverdueBadge, PriorityBadge, StatusBadge } from "@/components/tickets/Badges";
 import { Button } from "@/components/ui/Button";
@@ -56,18 +63,35 @@ export function TicketDetail({ ticketId, backHref }: { ticketId: string; backHre
     queryKey: ["ticket", ticketId],
     queryFn: () => apiJson<Ticket>(`/api/tickets/${ticketId}`),
   });
+  // New messages arrive over Supabase Realtime (RLS-checked per subscriber)
+  // and are written straight into the cache; polling is only a safety net,
+  // fast while the channel is down (docs/CHAT.md).
+  const realtime = useTicketRealtime(ticketId, (row: CommentRow) => {
+    const key = ["comments", ticketId];
+    const current = queryClient.getQueryData<Comment[]>(key);
+    if (current?.some((c) => c.id === row.id)) return; // our own optimistic send already landed
+    // Echo of a message this tab is still sending: its POST response will add it.
+    if (row.user_id === me.data?.user_id && queryClient.isMutating({ mutationKey: ["send-message", ticketId] }) > 0) {
+      return;
+    }
+    const next = commentFromRealtime(row, current);
+    if (next) queryClient.setQueryData<Comment[]>(key, (old) => upsertComment(old, next));
+    // Unknown author (first message from them in this thread) or a non-live
+    // row: one list refetch through the API resolves the name under RLS.
+    else queryClient.invalidateQueries({ queryKey: key });
+  });
+  const pollMs = realtime === "live" ? CHAT_REFETCH_REALTIME_MS : CHAT_REFETCH_MS;
   const comments = useQuery({
     queryKey: ["comments", ticketId],
     queryFn: () => apiJson<Comment[]>(`/api/tickets/${ticketId}/comments`),
     enabled: ticket.isSuccess,
-    // Chat freshness by polling while the page is open (no realtime; docs/CHAT.md).
-    refetchInterval: CHAT_REFETCH_MS,
+    refetchInterval: pollMs,
   });
   const attachments = useQuery({
     queryKey: ["attachments", ticketId],
     queryFn: () => apiJson<Attachment[]>(`/api/tickets/${ticketId}/attachments`),
     enabled: ticket.isSuccess,
-    refetchInterval: CHAT_REFETCH_MS,
+    refetchInterval: pollMs,
   });
   useMarkTicketNotificationsRead(ticketId, ticket.isSuccess);
 
@@ -191,7 +215,13 @@ export function TicketDetail({ ticketId, backHref }: { ticketId: string; backHre
             myUserId={me.data.user_id}
             staff={staff}
             closed={t.status === "CLOSED"}
-            onPosted={refresh}
+            onPosted={(sentFile) => {
+              // The new message is already in the cache (setQueryData); only
+              // refresh what a send can change besides the thread.
+              if (sentFile) queryClient.invalidateQueries({ queryKey: ["attachments", ticketId] });
+              queryClient.invalidateQueries({ queryKey: ["ticket", ticketId] }); // first_response_at / SLA
+              queryClient.invalidateQueries({ queryKey: ["tickets"], refetchType: "none" });
+            }}
           />
 
           <AttachmentsSection ticketId={ticketId} attachments={attachments.data ?? []} onUploaded={refresh} />
