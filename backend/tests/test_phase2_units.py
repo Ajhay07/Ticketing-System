@@ -237,3 +237,11 @@ def test_each_file_in_a_batch_is_validated_independently() -> None:
         except attachments.AttachmentValidationError:
             results.append(False)
     assert results == [True, False, True, False]
+
+
+def test_counts_route_is_registered_before_ticket_id_route() -> None:
+    # "/counts" must not be captured by "/{ticket_id}" (which would 422 on a non-UUID).
+    from app.main import app
+
+    paths = [getattr(r, "path", "") for r in app.routes]
+    assert paths.index("/api/tickets/counts") < paths.index("/api/tickets/{ticket_id}")

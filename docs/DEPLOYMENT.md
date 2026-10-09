@@ -65,6 +65,7 @@ Migrations are forward-only SQL files in `supabase/migrations/`:
 | `0004_soft_delete_fix.sql` | yes | **NO — pending** |
 | `0005_notification_type.sql` | yes | **NO — pending** |
 | `0006_sla_audit_visibility_staff_names.sql` | yes | **NO — pending** |
+| `0007_realtime_comments.sql` | yes (2026-10-09) | **NO — pending** |
 
 Pre-flight:
 
@@ -90,6 +91,7 @@ PENDING = [
     "0004_soft_delete_fix.sql",
     "0005_notification_type.sql",
     "0006_sla_audit_visibility_staff_names.sql",
+    "0007_realtime_comments.sql",
 ]
 with psycopg.connect(env["DATABASE_URL"]) as conn:
     for name in PENDING:
@@ -111,7 +113,17 @@ select proname from pg_proc where proname in ('soft_delete_ticket','apply_ticket
   'ticket_assignee_first_name','comment_author_first_name');                       -- 4 rows
 select unnest(enum_range(null::notification_type));                                -- includes TEAM_REPLY
 select tgname from pg_trigger where tgname in ('tickets_guard_update','tickets_apply_sla'); -- 2 rows
+select tablename from pg_publication_tables where pubname = 'supabase_realtime';  -- exactly: ticket_comments
 ```
+
+0007 (Realtime for the chat) only adds `ticket_comments` to the
+`supabase_realtime` publication. Realtime then authorizes each event with the
+subscriber's JWT against the existing `ticket_comments_select` RLS policy.
+`backend/tests/test_realtime_rls.py` proves on DEV that clients never receive
+internal notes or other tenants' messages and anon receives nothing; run it
+against DEV after applying. Do not add other tables to the publication
+without an equivalent test. If 0007 is not applied, the chat simply keeps
+working by polling.
 
 Then run the backend test-suite **against DEV only** (never point tests at
 PROD) to confirm the same migration set is green there.
@@ -200,7 +212,7 @@ go-live, in the PROD Supabase dashboard:
 
 **Application (backend / worker / frontend):** redeploy the previous image
 tag / Vercel deployment ("Promote to Production" on the previous build).
-Migrations 0004-0006 are backward compatible with the previous app version
+Migrations 0004-0007 are backward compatible with the previous app version
 (they only add functions/triggers/policies and enum values).
 
 **Bad migration:** migrations are forward-only. Prefer writing a new
@@ -212,6 +224,7 @@ immediately:
   comment_author_first_name(uuid);` and recreate `audit_logs_select` from
   `0002_rls.sql`. (The current app expects the two name functions — roll the
   app back first.)
+- 0007: `alter publication supabase_realtime drop table public.ticket_comments;` (chat falls back to polling).
 - 0005: enum values cannot be dropped in Postgres; they are harmless if unused.
 - 0004: drop the `*_guard_update` triggers and `soft_delete_*` functions and
   recreate the five UPDATE policies exactly as in `0002_rls.sql`

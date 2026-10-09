@@ -101,6 +101,14 @@ def fetch_ticket(conn: psycopg.Connection, ticket_id: str, *, for_update: bool =
     return ticket
 
 
+def count_by_status(conn: psycopg.Connection) -> dict[str, int]:
+    """Visible (RLS-scoped) ticket count for every status, zeros included."""
+    with conn.cursor() as cur:
+        cur.execute("select t.status, count(*) from tickets t group by t.status")
+        found = {str(status_value): int(n) for status_value, n in cur.fetchall()}
+    return {name: found.get(name, 0) for name in sorted(state_machine.ALL_STATUSES)}
+
+
 def queue_visibility_check(cur: psycopg.Cursor, ticket_id: str) -> None:
     """Queue the same RLS-scoped visibility lookup fetch_ticket() does, so a
     caller can pipeline it with its own query (one round trip, not two)."""

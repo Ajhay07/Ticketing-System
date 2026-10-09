@@ -138,6 +138,17 @@ def list_tickets(
     )
 
 
+@router.get("/counts")
+def ticket_counts(
+    principal: Principal = Depends(get_current_principal),
+    conn: psycopg.Connection = Depends(get_db),
+) -> dict[str, int]:
+    """Ticket count per status, for dashboard counters (spec §17). One query
+    instead of one list request per status. RLS scopes the counts to exactly
+    the tickets the caller could list."""
+    return ticket_service.count_by_status(conn)
+
+
 @router.post("", status_code=201)
 def create_ticket(
     body: CreateTicketRequest,
