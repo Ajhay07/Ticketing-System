@@ -1,9 +1,9 @@
 "use client";
 
-import { useQueries } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { CheckCircle2, CircleDot, Clock, Hourglass, RotateCcw, UserCheck } from "lucide-react";
 import { StatCard } from "@/components/ui/StatCard";
-import { apiJson, statusLabel, ticketListPath, type TicketPage, type TicketStatus } from "@/lib/tickets";
+import { apiJson, statusLabel, type TicketStatus } from "@/lib/tickets";
 
 const ICONS: Partial<Record<TicketStatus, { icon: React.ComponentType<{ className?: string }>; tone: "brand" | "warning" | "success" | "violet" | "neutral" | "danger" }>> = {
   OPEN: { icon: CircleDot, tone: "brand" },
@@ -14,24 +14,23 @@ const ICONS: Partial<Record<TicketStatus, { icon: React.ComponentType<{ classNam
   REOPENED: { icon: RotateCcw, tone: "danger" },
 };
 
-/** Status counters (spec §17), using the list endpoint's server-side totals.
- * RLS scopes every count to what the caller may see. */
+/** Status counters (spec §17) from ONE request (GET /api/tickets/counts)
+ * instead of one list request per status. RLS scopes every count to what the
+ * caller may see. Mutations that change status invalidate ["tickets"]. */
 export function StatusCounts({ statuses }: { statuses: TicketStatus[] }) {
-  const results = useQueries({
-    queries: statuses.map((status) => ({
-      queryKey: ["ticket-count", status],
-      queryFn: () => apiJson<TicketPage>(ticketListPath({ page: 1, pageSize: 25, status })),
-    })),
+  const counts = useQuery({
+    queryKey: ["tickets", "counts"],
+    queryFn: () => apiJson<Record<TicketStatus, number>>("/api/tickets/counts"),
   });
   return (
     <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 xl:gap-6">
-      {statuses.map((status, i) => {
+      {statuses.map((status) => {
         const meta = ICONS[status];
         return (
           <StatCard
             key={status}
             label={statusLabel(status)}
-            value={results[i]?.data?.total ?? "–"}
+            value={counts.data?.[status] ?? "–"}
             icon={meta?.icon}
             tone={meta?.tone}
           />
